@@ -8,9 +8,6 @@ from typing import Any
 
 import paho.mqtt.client as paho
 
-OnMessageCallback = Callable[[paho.Client, Any, paho.MQTTMessage], None]
-OnMessageAsyncCallback = Callable[[paho.Client, Any, paho.MQTTMessage], Awaitable[None]]
-
 
 class AsyncioPahoClient(paho.Client):
     # pylint: disable=too-many-instance-attributes
@@ -42,7 +39,9 @@ class AsyncioPahoClient(paho.Client):
         self._is_disconnecting = False
         self._is_connect_async = False
         self._loop_misc_task: asyncio.Task | None = None
-        self._on_message_async: OnMessageAsyncCallback | None = None
+        self._on_message_async: Callable[
+            [paho.Client, Any, paho.MQTTMessage], Awaitable[None]
+        ] | None = None
 
         self.on_socket_open = self._on_socket_open_asyncio
         self.on_socket_close = self._on_socket_close_asyncio
@@ -94,25 +93,31 @@ class AsyncioPahoClient(paho.Client):
         return result
 
     @property
-    def on_message(self) -> OnMessageCallback | None:
+    def on_message(self) -> Callable[[paho.Client, Any, paho.MQTTMessage], None] | None:
         """Get the message received callback implementation."""
         if super().on_message == self._on_message_async:
             return None
         return super().on_message
 
     @on_message.setter
-    def on_message(self, func: OnMessageCallback) -> None:
+    def on_message(
+        self, func: Callable[[paho.Client, Any, paho.MQTTMessage], None]
+    ) -> None:
         """Set the message received callback implementation."""
         self._on_message_async = None
         paho.Client.on_message.fset(self, func)  # type: ignore
 
     @property
-    def on_message_async(self) -> OnMessageAsyncCallback | None:
+    def on_message_async(
+        self,
+    ) -> Callable[[paho.Client, Any, paho.MQTTMessage], Awaitable[None]] | None:
         """Get the message received async callback implementation."""
         return self._on_message_async
 
     @on_message_async.setter
-    def on_message_async(self, func: OnMessageAsyncCallback):
+    def on_message_async(
+        self, func: Callable[[paho.Client, Any, paho.MQTTMessage], Awaitable[None]]
+    ):
         """Set the message received async callback implementation."""
         self._on_message_async = func
         paho.Client.on_message.fset(self, self._on_message_async_forwarder)  # type: ignore
@@ -126,7 +131,9 @@ class AsyncioPahoClient(paho.Client):
             )
 
     def message_async_callback_add(
-        self, sub: str, callback: OnMessageAsyncCallback
+        self,
+        sub: str,
+        callback: Callable[[paho.Client, Any, paho.MQTTMessage], Awaitable[None]],
     ) -> None:
         """Register an async message callback for a specific topic."""
 
