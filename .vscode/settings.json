@@ -1,0 +1,19 @@
+{
+    "[python]": {
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": true,
+            "editor.defaultFormatter": "ms-python.python"
+        }
+    },
+    "editor.formatOnSave": true,
+    "editor.formatOnType": true,
+    "files.trimTrailingWhitespace": true,
+    "python.formatting.provider": "black",
+    "python.linting.pylintEnabled": true,
+    "python.linting.flake8Enabled": true,
+    "python.linting.mypyEnabled": true,
+    "python.testing.pytestArgs": [
+        "-s"
+    ],
+    "python.analysis.autoImportCompletions": false,
+}
