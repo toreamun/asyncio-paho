@@ -6,7 +6,7 @@ import logging
 
 import paho.mqtt.client as paho
 import pytest
-from asyncio_paho.client import AsyncioPahoClient
+from asyncio_paho import AsyncioPahoClient
 
 TOPIC = "asyncioclient"
 MQTT_HOST = "test.mosquitto.org"
