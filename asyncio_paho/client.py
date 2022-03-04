@@ -57,7 +57,10 @@ class AsyncioPahoClient(paho.Client):
         """Exit context."""
         self.disconnect()
         if self._loop_misc_task:
-            await self._loop_misc_task
+            try:
+                await self._loop_misc_task
+            except asyncio.CancelledError:
+                return
 
     def connect_async(
         self,
