@@ -1,2 +1,3 @@
 paho-mqtt
 pytest-asyncio
+paho-mqtt-stubs
