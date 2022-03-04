@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import socket
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -226,9 +227,6 @@ class AsyncioPahoClient(paho.Client):
             self._log(paho.MQTT_LOG_DEBUG, "Loop misc cancelled.")
             return
 
-    async def _async_reconnect_wait(self):
-        return await asyncio.sleep(2)
-
     def _reconnect(self) -> None:
         try:
             self.reconnect()
@@ -237,6 +235,23 @@ class AsyncioPahoClient(paho.Client):
             if on_connect_fail:
                 on_connect_fail(self, self._userdata)
             self._log(paho.MQTT_LOG_DEBUG, "Connection failed, retrying")
+
+    async def _async_reconnect_wait(self):
+        # See reconnect_delay_set for details
+        now = time.monotonic()
+        with self._reconnect_delay_mutex:
+            if self._reconnect_delay is None:
+                self._reconnect_delay = self._reconnect_min_delay
+            else:
+                self._reconnect_delay = min(
+                    self._reconnect_delay * 2,
+                    self._reconnect_max_delay,
+                )
+
+            target_time = now + self._reconnect_delay
+
+        remaining = target_time - now
+        await asyncio.sleep(remaining)
 
     def _log(self, level: Any, fmt: object, *args: object):
         easy_log = getattr(super(), "_easy_log", None)
