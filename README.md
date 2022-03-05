@@ -1,9 +1,9 @@
-[![GitHub Release](https://img.shields.io/github/release/toreamun/asyncio-paho?style=for-the-badge)](https://github.com/toreamun/asyncio-paho/releases)
-[![Language grade: Python](https://img.shields.io/lgtm/grade/python/g/toreamun/asyncio-paho.svg?logo=lgtm&logoWidth=18&style=for-the-badge)](https://lgtm.com/projects/g/toreamun/asyncio-paho/context:python)
-[![License](https://img.shields.io/github/license/toreamun/asyncio-paho?style=for-the-badge)](LICENSE)
-
-![Project Maintenance](https://img.shields.io/badge/maintainer-Tore%20Amundsen%20%40toreamun-blue.svg?style=for-the-badge)
-[![buy me a coffee](https://img.shields.io/badge/If%20you%20like%20it-Buy%20me%20a%20coffee-orange.svg?style=for-the-badge)](https://www.buymeacoffee.com/toreamun)
+[![GitHub Release](https://img.shields.io/github/release/toreamun/asyncio-paho)](https://github.com/toreamun/asyncio-paho/releases)
+[![Language grade: Python](https://img.shields.io/lgtm/grade/python/g/toreamun/asyncio-paho.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/toreamun/asyncio-paho/context:python)
+[![CodeQL](https://github.com/toreamun/asyncio-paho/workflows/CodeQL/badge.svg)](https://github.com/toreamun/asyncio-paho/actions?query=workflow%3ACodeQL&)
+[![License](https://img.shields.io/github/license/toreamun/asyncio-paho)](LICENSE)
+![Project Maintenance](https://img.shields.io/badge/maintainer-Tore%20Amundsen%20%40toreamun-blue.svg)
+[![buy me a coffee](https://img.shields.io/badge/If%20you%20like%20it-Buy%20me%20a%20coffee-orange.svg)](https://www.buymeacoffee.com/toreamun)
 
 
 # Asynchronous I/O (asyncio) Paho MQTT client
