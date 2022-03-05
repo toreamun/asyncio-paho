@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="UTF-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="asyncio-paho",
+    name="asyncio_paho",
     version="0.1.0",
     author="Tore Amundsen",
     author_email="tore@amundsen.org",
@@ -13,8 +13,8 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/toreamun/asyncio-paho",
-    packages=["asyncio-paho"],
-    package_data={"asyncio-paho": ["py.typed"]},
+    packages=["asyncio_paho"],
+    package_data={"asyncio_paho": ["py.typed"]},
     keywords=[
         "paho",
         "mqtt",
