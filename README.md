@@ -53,11 +53,11 @@ async with AsyncioPahoClient() as client:
 
 Paho has a lot of callbacks. Async alternatives have been added for some of them, but they are mutally exclusive (you have to pick sync or async for eatch callback type).
 
-| Classic Paho    | Extension alternative                  |
-| --------------- | -------------------------------------- |
-| on_connect      | asyncio_add_on_connect_listener()      |
-| on_connect_fail | asyncio_add_on_connect_fail_listener() |
-| on_message      | asyncio_add_on_message_listener()      |
+| Classic Paho    | Extension alternative                  | Called when                                                          |
+| --------------- | -------------------------------------- | -------------------------------------------------------------------- |
+| on_connect      | asyncio_add_on_connect_listener()      | The broker responds to our connection                                |
+| on_connect_fail | asyncio_add_on_connect_fail_listener() | The client failed to connect to the broker                           |
+| on_message      | asyncio_add_on_message_listener()      | A message has been received on a topic that the client subscribes to |
 
 ```python
 
