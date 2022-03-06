@@ -85,3 +85,10 @@ async with AsyncioPahoClient() as client:
     client.asyncio_add_on_connect_listener(on_connect_async)
     await client.asyncio_connect("mqtt.eclipseprojects.io")
 ```
+
+## Dependencies
+
+- Python 3.8 or later.
+- [Paho MQTT](https://github.com/eclipse/paho.mqtt.python)
+
+The client uses asyncio event loop `add_reader()` and `add_writer()` methods. These methods are not supported on [Windows](https://docs.python.org/3/library/asyncio-platforms.html#windows) by [ProactorEventLoop](https://docs.python.org/3/library/asyncio-eventloop.html#asyncio.ProactorEventLoop) (default from Python 3.8). You should be able to use another event loop like [SelectorEventLoop](https://docs.python.org/3/library/asyncio-eventloop.html#asyncio.SelectorEventLoop).
