@@ -55,11 +55,16 @@ async def test_connect_publish_subscribe(event_loop: asyncio.AbstractEventLoop, 
         print(f"Received from {msg.topic}: {str(msg.payload)}")
         done_future.set_result(msg.payload)
 
+    def on_log(client, userdata, level, buf):
+        # pylint: disable=unused-argument
+        print(f"LOG: {buf}")
+
     async with AsyncioPahoClient(loop=event_loop) as client:
         client.on_connect = on_connect
         client.on_connect_fail = on_connect_fail
         client.on_subscribe = on_subscribe
         client.on_message = on_message
+        client.on_log = on_log
 
         client.connect_async(MQTT_HOST)
 
@@ -116,11 +121,16 @@ async def test_async_connect_publish_subscribe(
         print(f"Received from {msg.topic}: {str(msg.payload)}")
         done_future.set_result(msg.payload)
 
+    def on_log(client, userdata, level, buf):
+        # pylint: disable=unused-argument
+        print(f"LOG: {buf}")
+
     async with AsyncioPahoClient(loop=event_loop) as client:
         client.asyncio_add_on_connect_listener(on_connect_async)
         client.asyncio_add_on_connect_fail_listener(on_connect_fail)
         client.asyncio_add_on_subscribe_listener(on_subscribe)
         client.asyncio_add_on_message_listener(on_message_async)
+        client.on_log = on_log
 
         await client.asyncio_connect(MQTT_HOST)
 
