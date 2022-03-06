@@ -13,6 +13,7 @@ import paho.mqtt.client as paho
 
 class _EventType(Enum):
     ON_CONNECT = auto()
+    ON_CONNECT_FAILED = auto()
 
 
 class AsyncioPahoClient(paho.Client):
@@ -44,6 +45,7 @@ class AsyncioPahoClient(paho.Client):
         self._reconnect_on_failure = reconnect_on_failure
         self._is_disconnecting = False
         self._is_connect_async = False
+        self._connect_ex: Exception | None = None
         self._loop_misc_task: asyncio.Task | None = None
         self._on_message_async: Callable[
             [paho.Client, Any, paho.MQTTMessage], Awaitable[None]
@@ -83,27 +85,39 @@ class AsyncioPahoClient(paho.Client):
         """Connect to a remote broker asynchronously and return when done."""
         connect_future = self._event_loop.create_future()
 
-        if self.on_connect not in (None, self._on_connect_forwarder):
+        if self.on_connect not in (
+            None,
+            self._on_connect_forwarder,
+        ) or self.on_connect_fail not in (None, self._on_connect_fail_forwarder):
             raise Exception(
                 (
-                    "async_connect cannot be used when on_connect is set. "
+                    "async_connect cannot be used when on_connect or on_connect_failed is set. "
                     "Use add_on_connect_listener instead of setting on_connect."
                 )
             )
 
-        async def connected(*argv):
+        async def connect_callback(*argv):
             # pylint: disable=unused-argument
             nonlocal connect_future
-            connect_future.set_result(None)
+            if self._connect_ex:
+                connect_future.set_exception(self._connect_ex)
+            else:
+                connect_future.set_result(self._connect_ex)
 
-        unsubscriber = self.asyncio_add_on_connect_listener(connected, is_high_pri=True)
+        unsubscribe_connect = self.asyncio_add_on_connect_listener(
+            connect_callback, is_high_pri=True
+        )
+        unsubscribe_connect_fail = self.asyncio_add_on_connect_fail_listener(
+            connect_callback, is_high_pri=True
+        )
         try:
             self.connect_async(
                 host, port, keepalive, bind_address, bind_port, clean_start, properties
             )
             await connect_future
         finally:
-            unsubscriber()
+            unsubscribe_connect()
+            unsubscribe_connect_fail()
 
     def connect_async(
         self,
@@ -145,12 +159,26 @@ class AsyncioPahoClient(paho.Client):
         | Callable[[paho.Client, Any, dict, int, paho.Properties], Awaitable[None]],
         is_high_pri: bool = False,
     ) -> Callable[[], None]:
-        """Add on-connect async listener."""
+        """Add on_connect async listener."""
         paho.Client.on_connect.fset(self, self._on_connect_forwarder)  # type: ignore
         return self._add_async_listener(_EventType.ON_CONNECT, callback, is_high_pri)
 
     def _on_connect_forwarder(self, *argv):
         self._async_forwarder(_EventType.ON_CONNECT, argv)
+
+    def asyncio_add_on_connect_fail_listener(
+        self,
+        callback: Callable[[paho.Client, Any], Awaitable[None]],
+        is_high_pri: bool = False,
+    ) -> Callable[[], None]:
+        """Add on_connect_fail async listener."""
+        paho.Client.on_connect_fail.fset(self, self._on_connect_fail_forwarder)  # type: ignore
+        return self._add_async_listener(
+            _EventType.ON_CONNECT_FAILED, callback, is_high_pri
+        )
+
+    def _on_connect_fail_forwarder(self, *argv):
+        self._async_forwarder(_EventType.ON_CONNECT_FAILED, argv)
 
     @property
     def on_message(self) -> Callable[[paho.Client, Any, paho.MQTTMessage], None] | None:
@@ -259,12 +287,21 @@ class AsyncioPahoClient(paho.Client):
 
     async def _loop_misc(self) -> None:
         try:
+            self._connect_ex = None
             self._is_disconnecting = False
+            if self._is_connect_async:
+                try:
+                    self.reconnect()
+                except Exception as ex:
+                    self._connect_ex = ex
+                    on_connect_fail = super().on_connect_fail
+                    if on_connect_fail:
+                        on_connect_fail(self, self._userdata)
+                    raise
+
+                self._is_connect_async = False
+
             while True:
-                if self._is_connect_async:
-                    self._reconnect()
-                    self._is_connect_async = False
-                    await self._async_reconnect_wait()
 
                 return_code = paho.MQTT_ERR_SUCCESS
                 while return_code == paho.MQTT_ERR_SUCCESS:
