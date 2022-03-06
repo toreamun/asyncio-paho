@@ -5,12 +5,14 @@
 ![Project Maintenance](https://img.shields.io/badge/maintainer-Tore%20Amundsen%20%40toreamun-blue.svg)
 [![buy me a coffee](https://img.shields.io/badge/If%20you%20like%20it-Buy%20me%20a%20coffee-orange.svg)](https://www.buymeacoffee.com/toreamun)
 
-
 # Asynchronous I/O (asyncio) Paho MQTT client
-A [Paho MQTT](https://github.com/eclipse/paho.mqtt.python) client supporting [asyncio](https://docs.python.org/3/library/asyncio.html) loop without additional setup. Forget about configuring the [Paha network-loop](https://github.com/eclipse/paho.mqtt.python#network-loop). The client can almost be used as a drop-in replacement for Paho Client. The asyncio loop is automatically configured when you connect. You should use Paha [connect_async](https://github.com/eclipse/paho.mqtt.python#connect_async) or extension ```asyncio_connect()``` to when connecting to avoid blocking.
+
+A [Paho MQTT](https://github.com/eclipse/paho.mqtt.python) client supporting [asyncio](https://docs.python.org/3/library/asyncio.html) loop without additional setup. Forget about configuring the [Paha network-loop](https://github.com/eclipse/paho.mqtt.python#network-loop). The client can almost be used as a drop-in replacement for Paho Client. The asyncio loop is automatically configured when you connect. You should use Paha [connect_async](https://github.com/eclipse/paho.mqtt.python#connect_async) or extension `asyncio_connect()` to when connecting to avoid blocking.
 
 ## Usage
+
 ### Drop-in replacement
+
 ```python
 client = AsyncioPahoClient()
 client.connect_async("mqtt.eclipseprojects.io")
@@ -23,23 +25,25 @@ client.Disconnect()
 ```
 
 ### Asynchronous Context Manager
+
 The client is an Asynchronous Context Manager and can be used with the Python with statement to atomatically disconnect and clean up.
 
 ```python
 async with AsyncioPahoClient() as client:
     client.connect_async("mqtt.eclipseprojects.io")
-    
+
     # do mqtt stuff - client.Disconnect() is called when exiting context.
 
 ```
 
 ## Extensions
-The client has some additional async features (functions prefixed with ```asyncio_```).
+
+The client has some additional async features (functions prefixed with `asyncio_`).
 
 ### asyncio_connect
-The classic Paho connect() is blocking. Paho [connect_async](https://github.com/eclipse/paho.mqtt.python#connect_async) returns before the connect is complete. Use 
-asyncio_connect to wait for connect to complete without blocking. Please not that `asyncio_connect()` cannot be used together with `on_connect` (use `asyncio_add_on_connect_listener` instead of `on_connect`).
 
+The classic Paho connect() is blocking. Paho [connect_async](https://github.com/eclipse/paho.mqtt.python#connect_async) returns before the connect is complete. Use
+asyncio_connect to wait for connect to complete without blocking. This function throws exception on connect failure. Please not that `asyncio_connect()` cannot be used together with `on_connect` (use `asyncio_add_on_connect_listener` instead of `on_connect`).
 
 ```python
 async with AsyncioPahoClient() as client:
@@ -47,12 +51,13 @@ async with AsyncioPahoClient() as client:
 ```
 
 ### Callbacks
+
 Paho has a lot of callbacks. Async alternatives have been added for some of them, but they are mutally exclusive (you have to pick sync or async for eatch callback type).
 
-|Classic Paho|Extension alternative|
-|---|---|
-|on_connect|asyncio_add_on_connect_listener()|
-
+| Classic Paho    | Extension alternative                  |
+| --------------- | -------------------------------------- |
+| on_connect      | asyncio_add_on_connect_listener()      |
+| on_connect_fail | asyncio_add_on_connect_fail_listener() |
 
 ```python
 
@@ -63,4 +68,3 @@ async with AsyncioPahoClient() as client:
     client.asyncio_add_on_connect_listener(on_connect_async)
     await client.asyncio_connect("mqtt.eclipseprojects.io")
 ```
-
