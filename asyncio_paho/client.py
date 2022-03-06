@@ -6,7 +6,7 @@ import socket
 import time
 from collections.abc import Awaitable, Callable
 from enum import Enum, auto
-from typing import Any, Sequence
+from typing import Any
 
 import paho.mqtt.client as paho
 
