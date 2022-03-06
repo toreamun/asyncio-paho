@@ -51,7 +51,7 @@ async with AsyncioPahoClient() as client:
 
 ### Callbacks
 
-Paho has a lot of callbacks. Async alternatives have been added for some of them, but they are mutally exclusive (you have to pick sync or async for eatch callback type).
+Paho has a lot of callbacks. Async alternatives have been added for some of them, but they are mutally exclusive (you have to pick sync or async for eatch callback type). Multiple async listeners can be added to the same event, and a function handle to unsubscribe is returned when adding.
 
 | Classic Paho    | Extension alternative                  | Called when                                                          |
 | --------------- | -------------------------------------- | -------------------------------------------------------------------- |
