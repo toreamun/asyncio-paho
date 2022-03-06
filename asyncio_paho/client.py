@@ -70,6 +70,40 @@ class AsyncioPahoClient(paho.Client):
             except asyncio.CancelledError:
                 return
 
+    def connect_async(
+        self,
+        host: str,
+        port: int = 1883,
+        keepalive: int = 60,
+        bind_address: str = "",
+        bind_port: int = 0,
+        clean_start: bool | int = paho.MQTT_CLEAN_START_FIRST_ONLY,
+        properties: paho.Properties | None = None,
+    ) -> None:
+        # pylint: disable=too-many-arguments
+        """
+        Connect to a remote broker asynchronously.
+
+        This is a non-blocking connect call that can be used to provide very quick start.
+        """
+        self._is_connect_async = True
+        self._ensure_loop_misc_started()  # loop must be started for connect to proceed
+        super().connect_async(
+            host, port, keepalive, bind_address, bind_port, clean_start, properties
+        )
+
+    def disconnect(
+        self,
+        reasoncode: paho.ReasonCodes = None,
+        properties: paho.Properties | None = None,
+    ) -> int:
+        """Disconnect a connected client from the broker."""
+        result = super().disconnect(reasoncode, properties)
+        self._is_disconnecting = True
+        if self._loop_misc_task:
+            self._loop_misc_task.cancel()
+        return result
+
     async def asyncio_connect(
         self,
         host: str,
@@ -117,40 +151,6 @@ class AsyncioPahoClient(paho.Client):
         finally:
             unsubscribe_connect()
             unsubscribe_connect_fail()
-
-    def connect_async(
-        self,
-        host: str,
-        port: int = 1883,
-        keepalive: int = 60,
-        bind_address: str = "",
-        bind_port: int = 0,
-        clean_start: bool | int = paho.MQTT_CLEAN_START_FIRST_ONLY,
-        properties: paho.Properties | None = None,
-    ) -> None:
-        # pylint: disable=too-many-arguments
-        """
-        Connect to a remote broker asynchronously.
-
-        This is a non-blocking connect call that can be used to provide very quick start.
-        """
-        self._is_connect_async = True
-        self._ensure_loop_misc_started()  # loop must be started for connect to proceed
-        super().connect_async(
-            host, port, keepalive, bind_address, bind_port, clean_start, properties
-        )
-
-    def disconnect(
-        self,
-        reasoncode: paho.ReasonCodes = None,
-        properties: paho.Properties | None = None,
-    ) -> int:
-        """Disconnect a connected client from the broker."""
-        result = super().disconnect(reasoncode, properties)
-        self._is_disconnecting = True
-        if self._loop_misc_task:
-            self._loop_misc_task.cancel()
-        return result
 
     def asyncio_add_on_connect_listener(
         self,
