@@ -47,7 +47,7 @@ async with AsyncioPahoClient() as client:
 ```
 
 ### Callbacks
-Paho has a lot of callbacks. Async alternatives have been added for some of them, but they are mutally exclusive (you have to pick.
+Paho has a lot of callbacks. Async alternatives have been added for some of them, but they are mutally exclusive (you have to pick sync or async for eatch callback type).
 
 |Classic Paho|Extension alternative|
 |---|---|
