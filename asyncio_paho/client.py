@@ -6,7 +6,7 @@ import socket
 import time
 from collections.abc import Awaitable, Callable
 from enum import Enum, auto
-from typing import Any
+from typing import Any, Sequence
 
 import paho.mqtt.client as paho
 
@@ -15,6 +15,7 @@ class _EventType(Enum):
     ON_CONNECT = auto()
     ON_CONNECT_FAILED = auto()
     ON_MESSAGE = auto()
+    ON_SUBSCRIBE = auto()
 
 
 class AsyncioPahoClient(paho.Client):
@@ -154,7 +155,9 @@ class AsyncioPahoClient(paho.Client):
     def asyncio_add_on_connect_listener(
         self,
         callback: Callable[[paho.Client, Any, dict[str, Any], int], Awaitable[None]]
-        | Callable[[paho.Client, Any, dict[str, Any], int, paho.Properties], Awaitable[None]],
+        | Callable[
+            [paho.Client, Any, dict[str, Any], int, paho.Properties], Awaitable[None]
+        ],
         is_high_pri: bool = False,
     ) -> Callable[[], None]:
         """Add on_connect async listener."""
@@ -201,6 +204,21 @@ class AsyncioPahoClient(paho.Client):
             self._event_loop.create_task(callback(*args))
 
         super().message_callback_add(sub, forwarder)
+
+    def asyncio_add_on_subscribe_listener(
+        self,
+        callback: Callable[[paho.Client, Any, int, tuple[int, ...]], Awaitable[None]]
+        | Callable[
+            [paho.Client, Any, int, list[int], paho.Properties], Awaitable[None]
+        ],
+    ) -> Callable[[], None]:
+        """Add on_subscribe async listener."""
+
+        def forwarder(*args):
+            self._async_forwarder(_EventType.ON_SUBSCRIBE, *args)
+
+        paho.Client.on_subscribe.fset(self, forwarder)  # type: ignore
+        return self._add_async_listener(_EventType.ON_SUBSCRIBE, callback)
 
     def user_data_set(self, userdata: Any) -> None:
         """Set the user data variable passed to callbacks. May be any data type."""

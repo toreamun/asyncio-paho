@@ -39,7 +39,9 @@ async def test_connect_publish_subscribe(event_loop: asyncio.AbstractEventLoop, 
         # pylint: disable=unused-argument
         print("Connect failed")
 
-    def on_subscribe(client, userdata, mid, granted_qos) -> None:
+    def on_subscribe(
+        client: paho.Client, userdata: Any, mid: int, granted_qos: tuple[int, ...]
+    ) -> None:
         # pylint: disable=unused-argument
         print("Subscription done.")
 
@@ -98,7 +100,9 @@ async def test_async_connect_publish_subscribe(
         # pylint: disable=unused-argument
         print("Connect failed")
 
-    def on_subscribe(client, userdata, mid, granted_qos) -> None:
+    async def on_subscribe(
+        client: paho.Client, userdata: Any, mid: int, granted_qos: tuple[int, ...]
+    ) -> None:
         # pylint: disable=unused-argument
         print("Subscription done.")
 
@@ -115,7 +119,7 @@ async def test_async_connect_publish_subscribe(
     async with AsyncioPahoClient(loop=event_loop) as client:
         client.asyncio_add_on_connect_listener(on_connect_async)
         client.asyncio_add_on_connect_fail_listener(on_connect_fail)
-        client.on_subscribe = on_subscribe
+        client.asyncio_add_on_subscribe_listener(on_subscribe)
         client.asyncio_add_on_message_listener(on_message_async)
 
         await client.asyncio_connect(MQTT_HOST)

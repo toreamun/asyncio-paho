@@ -7,9 +7,10 @@
 
 # Asynchronous I/O (asyncio) Paho MQTT client
 
-A [Paho MQTT](https://github.com/eclipse/paho.mqtt.python) client supporting [asyncio](https://docs.python.org/3/library/asyncio.html) loop without additional setup. Forget about configuring the [Paho network-loop](https://github.com/eclipse/paho.mqtt.python#network-loop). The client can almost be used as a drop-in replacement for Paho Client. The asyncio loop is automatically configured when you connect. 
+A [Paho MQTT](https://github.com/eclipse/paho.mqtt.python) client supporting [asyncio](https://docs.python.org/3/library/asyncio.html) loop without additional setup. Forget about configuring the [Paho network-loop](https://github.com/eclipse/paho.mqtt.python#network-loop). The client can almost be used as a drop-in replacement for Paho Client. The asyncio loop is automatically configured when you connect.
 
 ### Features
+
 - Drop-in replacement of Paho Client (inherits from Paho Client)
 - Automatic configuration of asyncio loop.
 - Reconnect on connection loss.
@@ -20,14 +21,17 @@ A [Paho MQTT](https://github.com/eclipse/paho.mqtt.python) client supporting [as
 - No threading, only asyncio.
 
 ## Installation
+
 ```
 pip install asyncio-paho
 ```
 
 ## Usage
+
 You should use Paho [`connect_async()`](https://github.com/eclipse/paho.mqtt.python#connect_async) or extension [`asyncio_connect()`](#asyncio_connect) when connecting to avoid blocking.
 
 ### Drop-in replacement
+
 Remove all you calls to Paho looping like loop_forever() etc.
 
 ```python
@@ -70,11 +74,12 @@ async with AsyncioPahoClient() as client:
 
 Paho has a lot of callbacks. Async alternatives have been added for some of them, but they are mutally exclusive (you have to pick sync or async for eatch callback type). Multiple async listeners can be added to the same event, and a function handle to unsubscribe is returned when adding.
 
-| Classic Paho    | Extension alternative                  | Called when                                                          |
-| --------------- | -------------------------------------- | -------------------------------------------------------------------- |
-| [on_connect](https://github.com/eclipse/paho.mqtt.python#callback-connect)      | asyncio_add_on_connect_listener()      | The broker responds to our connection                                |
-| on_connect_fail | asyncio_add_on_connect_fail_listener() | The client failed to connect to the broker                           |
-| [on_message](https://github.com/eclipse/paho.mqtt.python#on_message)      | asyncio_add_on_message_listener()      | A message has been received on a topic that the client subscribes to |
+| Classic Paho                                                               | Extension alternative                  | Called when                                                          |
+| -------------------------------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------------- |
+| [on_connect](https://github.com/eclipse/paho.mqtt.python#callback-connect) | asyncio_add_on_connect_listener()      | the broker responds to our connection                                |
+| on_connect_fail                                                            | asyncio_add_on_connect_fail_listener() | the client failed to connect to the broker                           |
+| [on_message](https://github.com/eclipse/paho.mqtt.python#on_message)       | asyncio_add_on_message_listener()      | a message has been received on a topic that the client subscribes to |
+| [on_subscribe](https://github.com/eclipse/paho.mqtt.python#on_subscribe)   | asyncio_add_on_subscribe_listener()    | when the broker responds to a subscribe request                      |
 
 ```python
 
