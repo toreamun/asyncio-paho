@@ -14,6 +14,7 @@ import paho.mqtt.client as paho
 class _EventType(Enum):
     ON_CONNECT = auto()
     ON_CONNECT_FAILED = auto()
+    ON_MESSAGE = auto()
 
 
 class AsyncioPahoClient(paho.Client):
@@ -47,9 +48,6 @@ class AsyncioPahoClient(paho.Client):
         self._is_connect_async = False
         self._connect_ex: Exception | None = None
         self._loop_misc_task: asyncio.Task | None = None
-        self._on_message_async: Callable[
-            [paho.Client, Any, paho.MQTTMessage], Awaitable[None]
-        ] | None = None
 
         self._async_listeners: dict[_EventType, list] = {}
 
@@ -62,7 +60,7 @@ class AsyncioPahoClient(paho.Client):
         """Enter contex."""
         return self
 
-    async def __aexit__(self, *argv) -> None:
+    async def __aexit__(self, *args) -> None:
         """Exit context."""
         self.disconnect()
         if self._loop_misc_task:
@@ -96,7 +94,7 @@ class AsyncioPahoClient(paho.Client):
                 )
             )
 
-        async def connect_callback(*argv):
+        async def connect_callback(*args):
             # pylint: disable=unused-argument
             nonlocal connect_future
             if self._connect_ex:
@@ -155,16 +153,16 @@ class AsyncioPahoClient(paho.Client):
 
     def asyncio_add_on_connect_listener(
         self,
-        callback: Callable[[paho.Client, Any, dict, int], Awaitable[None]]
-        | Callable[[paho.Client, Any, dict, int, paho.Properties], Awaitable[None]],
+        callback: Callable[[paho.Client, Any, dict[str, Any], int], Awaitable[None]]
+        | Callable[[paho.Client, Any, dict[str, Any], int, paho.Properties], Awaitable[None]],
         is_high_pri: bool = False,
     ) -> Callable[[], None]:
         """Add on_connect async listener."""
         paho.Client.on_connect.fset(self, self._on_connect_forwarder)  # type: ignore
         return self._add_async_listener(_EventType.ON_CONNECT, callback, is_high_pri)
 
-    def _on_connect_forwarder(self, *argv):
-        self._async_forwarder(_EventType.ON_CONNECT, argv)
+    def _on_connect_forwarder(self, *args):
+        self._async_forwarder(_EventType.ON_CONNECT, *args)
 
     def asyncio_add_on_connect_fail_listener(
         self,
@@ -177,56 +175,30 @@ class AsyncioPahoClient(paho.Client):
             _EventType.ON_CONNECT_FAILED, callback, is_high_pri
         )
 
-    def _on_connect_fail_forwarder(self, *argv):
-        self._async_forwarder(_EventType.ON_CONNECT_FAILED, argv)
+    def _on_connect_fail_forwarder(self, *args):
+        self._async_forwarder(_EventType.ON_CONNECT_FAILED, *args)
 
-    @property
-    def on_message(self) -> Callable[[paho.Client, Any, paho.MQTTMessage], None] | None:
-        """Get the message received callback implementation."""
-        if super().on_message == self._on_message_async:
-            return None
-        return super().on_message
-
-    @on_message.setter
-    def on_message(
-        self, func: Callable[[paho.Client, Any, paho.MQTTMessage], None]
-    ) -> None:
-        """Set the message received callback implementation."""
-        self._on_message_async = None
-        paho.Client.on_message.fset(self, func)  # type: ignore
-
-    @property
-    def on_message_async(
+    def asyncio_add_on_message_listener(
         self,
-    ) -> Callable[[paho.Client, Any, paho.MQTTMessage], Awaitable[None]] | None:
-        """Get the message received async callback implementation."""
-        return self._on_message_async
+        callback: Callable[[paho.Client, Any, paho.MQTTMessage], Awaitable[None]],
+    ) -> Callable[[], None]:
+        """Add on_connect_fail async listener."""
 
-    @on_message_async.setter
-    def on_message_async(
-        self, func: Callable[[paho.Client, Any, paho.MQTTMessage], Awaitable[None]]
-    ):
-        """Set the message received async callback implementation."""
-        self._on_message_async = func
-        paho.Client.on_message.fset(self, self._on_message_async_forwarder)  # type: ignore
+        def on_message_forwarder(*args):
+            self._async_forwarder(_EventType.ON_MESSAGE, *args)
 
-    def _on_message_async_forwarder(
-        self, client: paho.Client, userdata: Any, message: paho.MQTTMessage
-    ):
-        if self._on_message_async:
-            self._event_loop.create_task(
-                self._on_message_async(client, userdata, message)
-            )
+        paho.Client.on_message.fset(self, on_message_forwarder)  # type: ignore
+        return self._add_async_listener(_EventType.ON_MESSAGE, callback)
 
-    def message_async_callback_add(
+    def asyncio_message_callback_add(
         self,
         sub: str,
         callback: Callable[[paho.Client, Any, paho.MQTTMessage], Awaitable[None]],
     ) -> None:
         """Register an async message callback for a specific topic."""
 
-        def forwarder(client: paho.Client, userdata: Any, message: paho.MQTTMessage):
-            self._event_loop.create_task(callback(client, userdata, message))
+        def forwarder(*args):
+            self._event_loop.create_task(callback(*args))
 
         super().message_callback_add(sub, forwarder)
 
@@ -235,7 +207,7 @@ class AsyncioPahoClient(paho.Client):
         self._userdata = userdata
         super().user_data_set(userdata)
 
-    def loop_forever(self, *argv, **kvarg):
+    def loop_forever(self, *args, **kvarg):
         """Invalid operation."""
         raise NotImplementedError(
             "loop_forever() cannot be used with AsyncioPahoClient."
@@ -372,7 +344,7 @@ class AsyncioPahoClient(paho.Client):
 
         return unsubscribe
 
-    def _async_forwarder(self, event_type: _EventType, *argv):
+    def _async_forwarder(self, event_type: _EventType, *args):
         async_listeners = self._get_async_listeners(event_type)
         for listener in async_listeners:
-            self._event_loop.create_task(listener(argv))
+            self._event_loop.create_task(listener(*args))

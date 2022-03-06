@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Any
 
 import paho.mqtt.client as paho
 import pytest
@@ -21,7 +22,9 @@ async def test_connect_publish_subscribe(event_loop: asyncio.AbstractEventLoop, 
     done_future = event_loop.create_future()
     subscribe_result: tuple[int, int] = (-1, -1)
 
-    def on_connect(*argv) -> None:
+    def on_connect(
+        client: paho.Client, userdata: Any, flags_dict: dict[str, Any], result: int
+    ) -> None:
         # pylint: disable=unused-argument
         nonlocal subscribe_result
         subscribe_result = client.subscribe(TOPIC)
@@ -32,7 +35,7 @@ async def test_connect_publish_subscribe(event_loop: asyncio.AbstractEventLoop, 
             f"Connected and subscribed to topic {TOPIC} with result {subscribe_result}"
         )
 
-    def on_connect_fail(*argv) -> None:
+    def on_connect_fail(client: paho.Client, userdata: Any) -> None:
         # pylint: disable=unused-argument
         print("Connect failed")
 
@@ -45,7 +48,7 @@ async def test_connect_publish_subscribe(event_loop: asyncio.AbstractEventLoop, 
 
         subscribed_future.set_result(None)
 
-    async def on_message_async(client, userdata, msg: paho.MQTTMessage):
+    def on_message(client, userdata, msg: paho.MQTTMessage):
         # pylint: disable=unused-argument
         print(f"Received from {msg.topic}: {str(msg.payload)}")
         done_future.set_result(msg.payload)
@@ -54,7 +57,7 @@ async def test_connect_publish_subscribe(event_loop: asyncio.AbstractEventLoop, 
         client.on_connect = on_connect
         client.on_connect_fail = on_connect_fail
         client.on_subscribe = on_subscribe
-        client.on_message_async = on_message_async
+        client.on_message = on_message
 
         client.connect_async(MQTT_HOST)
 
@@ -78,7 +81,9 @@ async def test_async_connect_publish_subscribe(
     done_future = event_loop.create_future()
     subscribe_result: tuple[int, int] = (-1, -1)
 
-    async def on_connect_async(*argv) -> None:
+    async def on_connect_async(
+        client: paho.Client, userdata: Any, flags_dict: dict[str, Any], result: int
+    ) -> None:
         # pylint: disable=unused-argument
         nonlocal subscribe_result
         subscribe_result = client.subscribe(TOPIC)
@@ -89,7 +94,7 @@ async def test_async_connect_publish_subscribe(
             f"Connected and subscribed to topic {TOPIC} with result {subscribe_result}"
         )
 
-    async def on_connect_fail(*argv) -> None:
+    async def on_connect_fail(client: paho.Client, userdata: Any) -> None:
         # pylint: disable=unused-argument
         print("Connect failed")
 
@@ -111,7 +116,7 @@ async def test_async_connect_publish_subscribe(
         client.asyncio_add_on_connect_listener(on_connect_async)
         client.asyncio_add_on_connect_fail_listener(on_connect_fail)
         client.on_subscribe = on_subscribe
-        client.on_message_async = on_message_async
+        client.asyncio_add_on_message_listener(on_message_async)
 
         await client.asyncio_connect(MQTT_HOST)
 
