@@ -57,6 +57,7 @@ Paho has a lot of callbacks. Async alternatives have been added for some of them
 | --------------- | -------------------------------------- |
 | on_connect      | asyncio_add_on_connect_listener()      |
 | on_connect_fail | asyncio_add_on_connect_fail_listener() |
+| on_message      | asyncio_add_on_message_listener()      |
 
 ```python
 
