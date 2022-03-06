@@ -7,11 +7,28 @@
 
 # Asynchronous I/O (asyncio) Paho MQTT client
 
-A [Paho MQTT](https://github.com/eclipse/paho.mqtt.python) client supporting [asyncio](https://docs.python.org/3/library/asyncio.html) loop without additional setup. Forget about configuring the [Paho network-loop](https://github.com/eclipse/paho.mqtt.python#network-loop). The client can almost be used as a drop-in replacement for Paho Client. The asyncio loop is automatically configured when you connect. You should use Paho [`connect_async()`](https://github.com/eclipse/paho.mqtt.python#connect_async) or extension [`asyncio_connect()`](#asyncio_connect) to when connecting to avoid blocking.
+A [Paho MQTT](https://github.com/eclipse/paho.mqtt.python) client supporting [asyncio](https://docs.python.org/3/library/asyncio.html) loop without additional setup. Forget about configuring the [Paho network-loop](https://github.com/eclipse/paho.mqtt.python#network-loop). The client can almost be used as a drop-in replacement for Paho Client. The asyncio loop is automatically configured when you connect. 
+
+### Features
+- Drop-in replacement of Paho Client (inherits from Paho Client)
+- Automatic configuration of asyncio loop.
+- Reconnect on connection loss.
+- Type hinted.
+- Async callbacks.
+- Non blocking connect (`await client.asyncio_connect()`).
+- Python Asynchronous Context Manager handles cleanup.
+- No threading, only asyncio.
+
+## Installation
+```
+pip install asyncio-paho
+```
 
 ## Usage
+You should use Paho [`connect_async()`](https://github.com/eclipse/paho.mqtt.python#connect_async) or extension [`asyncio_connect()`](#asyncio_connect) when connecting to avoid blocking.
 
 ### Drop-in replacement
+Remove all you calls to Paho looping like loop_forever() etc.
 
 ```python
 client = AsyncioPahoClient()
