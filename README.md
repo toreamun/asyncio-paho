@@ -72,9 +72,9 @@ Paho has a lot of callbacks. Async alternatives have been added for some of them
 
 | Classic Paho    | Extension alternative                  | Called when                                                          |
 | --------------- | -------------------------------------- | -------------------------------------------------------------------- |
-| on_connect      | asyncio_add_on_connect_listener()      | The broker responds to our connection                                |
+| [on_connect](https://github.com/eclipse/paho.mqtt.python#callback-connect)      | asyncio_add_on_connect_listener()      | The broker responds to our connection                                |
 | on_connect_fail | asyncio_add_on_connect_fail_listener() | The client failed to connect to the broker                           |
-| on_message      | asyncio_add_on_message_listener()      | A message has been received on a topic that the client subscribes to |
+| [on_message](https://github.com/eclipse/paho.mqtt.python#on_message)      | asyncio_add_on_message_listener()      | A message has been received on a topic that the client subscribes to |
 
 ```python
 
