@@ -320,13 +320,9 @@ class AsyncioPahoClient(paho.Client):
     def _get_async_listeners(self, event_type: _EventType) -> list:
         return self._async_listeners.setdefault(event_type, [])
 
-<<<<<<< HEAD
-    def _add_async_listener(self, event_type: _EventType, callback, is_high_pri=False):
-=======
     def _add_async_listener(
         self, event_type: _EventType, callback, is_high_pri=False
     ) -> Callable[[], None]:
->>>>>>> 3dfd1d3 (Added asyncio_connect and asyncio_add_on_connect_listener)
         listeners = self._get_async_listeners(event_type)
         if is_high_pri:
             listeners.insert(0, callback)
