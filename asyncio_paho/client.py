@@ -5,9 +5,14 @@ import asyncio
 import socket
 import time
 from collections.abc import Awaitable, Callable
+from enum import Enum, auto
 from typing import Any
 
 import paho.mqtt.client as paho
+
+
+class _EventType(Enum):
+    ON_CONNECT = auto()
 
 
 class AsyncioPahoClient(paho.Client):
@@ -44,6 +49,8 @@ class AsyncioPahoClient(paho.Client):
             [paho.Client, Any, paho.MQTTMessage], Awaitable[None]
         ] | None = None
 
+        self._async_listeners: dict[_EventType, list] = {}
+
         self.on_socket_open = self._on_socket_open_asyncio
         self.on_socket_close = self._on_socket_close_asyncio
         self.on_socket_register_write = self._on_socket_register_write_asyncio
@@ -61,6 +68,42 @@ class AsyncioPahoClient(paho.Client):
                 await self._loop_misc_task
             except asyncio.CancelledError:
                 return
+
+    async def asyncio_connect(
+        self,
+        host: str,
+        port: int = 1883,
+        keepalive: int = 60,
+        bind_address: str = "",
+        bind_port: int = 0,
+        clean_start: bool | int = paho.MQTT_CLEAN_START_FIRST_ONLY,
+        properties: paho.Properties | None = None,
+    ) -> None:
+        # pylint: disable=too-many-arguments
+        """Connect to a remote broker asynchronously and return when done."""
+        connect_future = self._event_loop.create_future()
+
+        if self.on_connect not in (None, self._on_connect_forwarder):
+            raise Exception(
+                (
+                    "async_connect cannot be used when on_connect is set. "
+                    "Use add_on_connect_listener instead of setting on_connect."
+                )
+            )
+
+        async def connected(*argv):
+            # pylint: disable=unused-argument
+            nonlocal connect_future
+            connect_future.set_result(None)
+
+        unsubscriber = self.asyncio_add_on_connect_listener(connected, is_high_pri=True)
+        try:
+            self.connect_async(
+                host, port, keepalive, bind_address, bind_port, clean_start, properties
+            )
+            await connect_future
+        finally:
+            unsubscriber()
 
     def connect_async(
         self,
@@ -80,7 +123,7 @@ class AsyncioPahoClient(paho.Client):
         """
         self._is_connect_async = True
         self._ensure_loop_misc_started()  # loop must be started for connect to proceed
-        return super().connect_async(
+        super().connect_async(
             host, port, keepalive, bind_address, bind_port, clean_start, properties
         )
 
@@ -95,6 +138,19 @@ class AsyncioPahoClient(paho.Client):
         if self._loop_misc_task:
             self._loop_misc_task.cancel()
         return result
+
+    def asyncio_add_on_connect_listener(
+        self,
+        callback: Callable[[paho.Client, Any, dict, int], Awaitable[None]]
+        | Callable[[paho.Client, Any, dict, int, paho.Properties], Awaitable[None]],
+        is_high_pri: bool = False,
+    ):
+        """Add on-connect async listener."""
+        paho.Client.on_connect.fset(self, self._on_connect_forwarder)  # type: ignore
+        return self._add_async_listener(_EventType.ON_CONNECT, callback, is_high_pri)
+
+    def _on_connect_forwarder(self, *argv):
+        self._async_forwarder(_EventType.ON_CONNECT, argv)
 
     @property
     def on_message(self) -> Callable[[paho.Client, Any, paho.MQTTMessage], None] | None:
@@ -260,3 +316,24 @@ class AsyncioPahoClient(paho.Client):
         easy_log = getattr(super(), "_easy_log", None)
         if easy_log is not None:
             easy_log(level, fmt, *args)
+
+    def _get_async_listeners(self, event_type: _EventType) -> list:
+        return self._async_listeners.setdefault(event_type, [])
+
+    def _add_async_listener(self, event_type: _EventType, callback, is_high_pri=False):
+        listeners = self._get_async_listeners(event_type)
+        if is_high_pri:
+            listeners.insert(0, callback)
+        else:
+            listeners.append(callback)
+
+        def unsubscribe():
+            if callback in listeners:
+                listeners.remove(callback)
+
+        return unsubscribe
+
+    def _async_forwarder(self, event_type: _EventType, *argv):
+        async_listeners = self._get_async_listeners(event_type)
+        for listener in async_listeners:
+            self._event_loop.create_task(listener(argv))

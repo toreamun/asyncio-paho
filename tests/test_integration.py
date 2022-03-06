@@ -21,7 +21,7 @@ async def test_connect_publish_subscribe(event_loop: asyncio.AbstractEventLoop, 
     done_future = event_loop.create_future()
     subscribe_result: tuple[int, int] = (-1, -1)
 
-    def on_connect(*argv) -> None:
+    async def on_connect_async(*argv) -> None:
         # pylint: disable=unused-argument
         nonlocal subscribe_result
         subscribe_result = client.subscribe(TOPIC)
@@ -51,12 +51,12 @@ async def test_connect_publish_subscribe(event_loop: asyncio.AbstractEventLoop, 
         done_future.set_result(msg.payload)
 
     async with AsyncioPahoClient(loop=event_loop) as client:
-        client.on_connect = on_connect
+        client.asyncio_add_on_connect_listener(on_connect_async)
         client.on_connect_fail = on_connect_fail
         client.on_subscribe = on_subscribe
         client.on_message_async = on_message_async
 
-        client.connect_async(MQTT_HOST, port=1883)
+        await client.asyncio_connect(MQTT_HOST, port=1883)
 
         # wait for subscription be done before publishing
         await subscribed_future
