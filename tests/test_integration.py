@@ -113,8 +113,8 @@ async def test_async_connect_publish_subscribe_mqtt3(
         await client.asyncio_connect(MQTT_HOST)
 
         await client.asyncio_publish(TOPIC, "this is a test", qos=0)
-        await client.asyncio_publish(TOPIC, "this is a test qos 1", qos=1)
-        await client.asyncio_publish(TOPIC, "this is a test qos 2", qos=2)
+        await client.asyncio_publish(TOPIC, "this is a test", qos=1)
+        await client.asyncio_publish(TOPIC, "this is a test", qos=2)
 
         received = await done_future
 
@@ -160,8 +160,8 @@ async def test_async_connect_publish_subscribe_mqtt5(
         )
 
         await client.asyncio_publish(TOPIC, "this is a test", qos=0)
-        await client.asyncio_publish(TOPIC, "this is a test qos 1", qos=1)
-        await client.asyncio_publish(TOPIC, "this is a test qos 2", qos=2)
+        await client.asyncio_publish(TOPIC, "this is a test", qos=1)
+        await client.asyncio_publish(TOPIC, "this is a test", qos=2)
 
         received = await done_future
 
