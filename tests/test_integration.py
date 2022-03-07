@@ -78,65 +78,90 @@ async def test_connect_publish_subscribe(event_loop: asyncio.AbstractEventLoop, 
 
 
 @pytest.mark.asyncio
-async def test_async_connect_publish_subscribe(
+async def test_async_connect_publish_subscribe_mqtt3(
     event_loop: asyncio.AbstractEventLoop, caplog
 ):
     """Test connect."""
     caplog.set_level(logging.DEBUG)
 
-    subscribed_future = event_loop.create_future()
     done_future = event_loop.create_future()
-    subscribe_result: tuple[int, int] = (-1, -1)
 
     async def on_connect_async(
-        client: paho.Client, userdata: Any, flags_dict: dict[str, Any], result: int
+        client: AsyncioPahoClient,
+        userdata: Any,
+        flags_dict: dict[str, Any],
+        result: int,
     ) -> None:
         # pylint: disable=unused-argument
-        nonlocal subscribe_result
-        subscribe_result = client.subscribe(TOPIC)
-
+        subscribe_result = await client.asyncio_subscribe(TOPIC)
         assert subscribe_result[0] == paho.MQTT_ERR_SUCCESS
-
         print(
             f"Connected and subscribed to topic {TOPIC} with result {subscribe_result}"
         )
 
-    async def on_connect_fail(client: paho.Client, userdata: Any) -> None:
+    async def on_message_async(client, userdata, msg: paho.MQTTMessage):
         # pylint: disable=unused-argument
-        print("Connect failed")
+        print(f"Received from {msg.topic}: {str(msg.payload)}")
+        nonlocal done_future
+        done_future.set_result(msg.payload)
 
-    async def on_subscribe(
-        client: paho.Client, userdata: Any, mid: int, granted_qos: tuple[int, ...]
+    async with AsyncioPahoClient(loop=event_loop) as client:
+        client.asyncio_listeners.add_on_connect(on_connect_async)
+        client.asyncio_listeners.add_on_message(on_message_async)
+        client.on_log = lambda client, userdata, level, buf: print(f"LOG: {buf}")
+
+        await client.asyncio_connect(MQTT_HOST)
+
+        await client.asyncio_publish(TOPIC, "this is a test", qos=0)
+        await client.asyncio_publish(TOPIC, "this is a test qos 1", qos=1)
+        await client.asyncio_publish(TOPIC, "this is a test qos 2", qos=2)
+
+        received = await done_future
+
+        assert received == b"this is a test"
+
+
+@pytest.mark.asyncio
+async def test_async_connect_publish_subscribe_mqtt5(
+    event_loop: asyncio.AbstractEventLoop, caplog
+):
+    """Test connect."""
+    caplog.set_level(logging.DEBUG)
+
+    done_future = event_loop.create_future()
+
+    async def on_connect_async(
+        client: AsyncioPahoClient,
+        userdata: Any,
+        flags: dict[str, Any],
+        reason_code: paho.ReasonCodes,
+        properties: paho.Properties,
     ) -> None:
         # pylint: disable=unused-argument
-        print("Subscription done.")
-
-        nonlocal subscribe_result
-        assert mid == subscribe_result[1]
-
-        subscribed_future.set_result(None)
+        subscribe_result = await client.asyncio_subscribe(TOPIC)
+        assert subscribe_result[0] == paho.MQTT_ERR_SUCCESS
+        print(
+            f"Connected and subscribed to topic {TOPIC} with result {subscribe_result}"
+        )
 
     async def on_message_async(client, userdata, msg: paho.MQTTMessage):
         # pylint: disable=unused-argument
         print(f"Received from {msg.topic}: {str(msg.payload)}")
+        nonlocal done_future
         done_future.set_result(msg.payload)
 
-    def on_log(client, userdata, level, buf):
-        # pylint: disable=unused-argument
-        print(f"LOG: {buf}")
+    async with AsyncioPahoClient(loop=event_loop, protocol=paho.MQTTv5) as client:
+        client.asyncio_listeners.add_on_connect(on_connect_async)
+        client.asyncio_listeners.add_on_message(on_message_async)
+        client.on_log = lambda client, userdata, level, buf: print(f"LOG: {buf}")
 
-    async with AsyncioPahoClient(loop=event_loop) as client:
-        client.asyncio_add_on_connect_listener(on_connect_async)
-        client.asyncio_add_on_connect_fail_listener(on_connect_fail)
-        client.asyncio_add_on_subscribe_listener(on_subscribe)
-        client.asyncio_add_on_message_listener(on_message_async)
-        client.on_log = on_log
+        await client.asyncio_connect(
+            MQTT_HOST,
+        )
 
-        await client.asyncio_connect(MQTT_HOST)
-
-        # wait for subscription be done before publishing
-        await subscribed_future
-        client.publish(TOPIC, "this is a test")
+        await client.asyncio_publish(TOPIC, "this is a test", qos=0)
+        await client.asyncio_publish(TOPIC, "this is a test qos 1", qos=1)
+        await client.asyncio_publish(TOPIC, "this is a test qos 2", qos=2)
 
         received = await done_future
 

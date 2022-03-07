@@ -11,13 +11,6 @@ from typing import Any
 import paho.mqtt.client as paho
 
 
-class _EventType(Enum):
-    ON_CONNECT = auto()
-    ON_CONNECT_FAILED = auto()
-    ON_MESSAGE = auto()
-    ON_SUBSCRIBE = auto()
-
-
 class AsyncioPahoClient(paho.Client):
     # pylint: disable=too-many-instance-attributes
     """Paho MQTT Client using asyncio for connection loop."""
@@ -50,8 +43,7 @@ class AsyncioPahoClient(paho.Client):
         self._connect_ex: Exception | None = None
         self._loop_misc_task: asyncio.Task | None = None
 
-        self._async_listeners: dict[_EventType, list] = {}
-
+        self._asyncio_listeners = _Listeners(self, self._event_loop)
         self.on_socket_open = self._on_socket_open_asyncio
         self.on_socket_close = self._on_socket_close_asyncio
         self.on_socket_register_write = self._on_socket_register_write_asyncio
@@ -69,6 +61,11 @@ class AsyncioPahoClient(paho.Client):
                 await self._loop_misc_task
             except asyncio.CancelledError:
                 return
+
+    @property
+    def asyncio_listeners(self):
+        """Async listeners."""
+        return self._asyncio_listeners
 
     def connect_async(
         self,
@@ -120,12 +117,15 @@ class AsyncioPahoClient(paho.Client):
 
         if self.on_connect not in (
             None,
-            self._on_connect_forwarder,
-        ) or self.on_connect_fail not in (None, self._on_connect_fail_forwarder):
+            self._asyncio_listeners._on_connect_forwarder,  # pylint: disable=protected-access
+        ) or self.on_connect_fail not in (
+            None,
+            self._asyncio_listeners._on_connect_fail_forwarder,  # pylint: disable=protected-access
+        ):
             raise Exception(
                 (
-                    "async_connect cannot be used when on_connect or on_connect_failed is set. "
-                    "Use add_on_connect_listener instead of setting on_connect."
+                    "async_connect cannot be used when on_connect or on_connect_fail is set. "
+                    "Use asyncio_listeners instead of setting on_connect."
                 )
             )
 
@@ -137,10 +137,10 @@ class AsyncioPahoClient(paho.Client):
             else:
                 connect_future.set_result(self._connect_ex)
 
-        unsubscribe_connect = self.asyncio_add_on_connect_listener(
+        unsubscribe_connect = self.asyncio_listeners.add_on_connect(
             connect_callback, is_high_pri=True
         )
-        unsubscribe_connect_fail = self.asyncio_add_on_connect_fail_listener(
+        unsubscribe_connect_fail = self.asyncio_listeners.add_on_connect_fail(
             connect_callback, is_high_pri=True
         )
         try:
@@ -152,73 +152,68 @@ class AsyncioPahoClient(paho.Client):
             unsubscribe_connect()
             unsubscribe_connect_fail()
 
-    def asyncio_add_on_connect_listener(
+    async def asyncio_publish(
         self,
-        callback: Callable[[paho.Client, Any, dict[str, Any], int], Awaitable[None]]
-        | Callable[
-            [paho.Client, Any, dict[str, Any], int, paho.Properties], Awaitable[None]
-        ],
-        is_high_pri: bool = False,
-    ) -> Callable[[], None]:
-        """Add on_connect async listener."""
-        paho.Client.on_connect.fset(self, self._on_connect_forwarder)  # type: ignore
-        return self._add_async_listener(_EventType.ON_CONNECT, callback, is_high_pri)
+        topic: str,
+        payload: Any | None = None,
+        qos: int = 0,
+        retain: bool = False,
+        properties: paho.Properties | None = None,
+    ) -> int:
+        # pylint: disable=too-many-arguments
+        """Publish a message on a topic."""
+        subscribed_future = self._event_loop.create_future()
 
-    def _on_connect_forwarder(self, *args):
-        self._async_forwarder(_EventType.ON_CONNECT, *args)
+        result: paho.MQTTMessageInfo
 
-    def asyncio_add_on_connect_fail_listener(
-        self,
-        callback: Callable[[paho.Client, Any], Awaitable[None]],
-        is_high_pri: bool = False,
-    ) -> Callable[[], None]:
-        """Add on_connect_fail async listener."""
-        paho.Client.on_connect_fail.fset(self, self._on_connect_fail_forwarder)  # type: ignore
-        return self._add_async_listener(
-            _EventType.ON_CONNECT_FAILED, callback, is_high_pri
+        async def on_publish(client: paho.Client, userdata: Any, mid: int) -> None:
+            # pylint: disable=unused-argument
+            nonlocal result
+            if result.mid == mid:
+                nonlocal subscribed_future
+                subscribed_future.set_result(mid)
+
+        unsubscribe = self.asyncio_listeners.add_on_publish(
+            on_publish, is_high_pri=True
         )
+        try:
+            result = super().publish(topic, payload, qos, retain, properties)
+            result.is_published()
+            return await subscribed_future
+        finally:
+            unsubscribe()
 
-    def _on_connect_fail_forwarder(self, *args):
-        self._async_forwarder(_EventType.ON_CONNECT_FAILED, *args)
-
-    def asyncio_add_on_message_listener(
+    async def asyncio_subscribe(
         self,
-        callback: Callable[[paho.Client, Any, paho.MQTTMessage], Awaitable[None]],
-    ) -> Callable[[], None]:
-        """Add on_connect_fail async listener."""
+        topic: str | tuple | list,
+        qos: int = 0,
+        options: paho.SubscribeOptions | None = None,
+        properties: paho.Properties | None = None,
+    ):
+        """Subscribe the client to one or more topics."""
+        subscribed_future = self._event_loop.create_future()
+        result: tuple[int, int]
 
-        def on_message_forwarder(*args):
-            self._async_forwarder(_EventType.ON_MESSAGE, *args)
+        async def on_subscribe(*args):
+            # pylint: disable=unused-argument
+            nonlocal result
+            if result[1] == args[2]:  # mid should match if relevant
+                nonlocal subscribed_future
+                subscribed_future.set_result(None)
 
-        paho.Client.on_message.fset(self, on_message_forwarder)  # type: ignore
-        return self._add_async_listener(_EventType.ON_MESSAGE, callback)
+        unsubscribe = self.asyncio_listeners.add_on_subscribe(
+            on_subscribe, is_high_pri=True
+        )
+        try:
+            result = super().subscribe(topic, qos, options, properties)
 
-    def asyncio_message_callback_add(
-        self,
-        sub: str,
-        callback: Callable[[paho.Client, Any, paho.MQTTMessage], Awaitable[None]],
-    ) -> None:
-        """Register an async message callback for a specific topic."""
+            if result[0] == paho.MQTT_ERR_NO_CONN:
+                return result
 
-        def forwarder(*args):
-            self._event_loop.create_task(callback(*args))
-
-        super().message_callback_add(sub, forwarder)
-
-    def asyncio_add_on_subscribe_listener(
-        self,
-        callback: Callable[[paho.Client, Any, int, tuple[int, ...]], Awaitable[None]]
-        | Callable[
-            [paho.Client, Any, int, list[int], paho.Properties], Awaitable[None]
-        ],
-    ) -> Callable[[], None]:
-        """Add on_subscribe async listener."""
-
-        def forwarder(*args):
-            self._async_forwarder(_EventType.ON_SUBSCRIBE, *args)
-
-        paho.Client.on_subscribe.fset(self, forwarder)  # type: ignore
-        return self._add_async_listener(_EventType.ON_SUBSCRIBE, callback)
+            await subscribed_future
+            return result
+        finally:
+            unsubscribe()
 
     def user_data_set(self, userdata: Any) -> None:
         """Set the user data variable passed to callbacks. May be any data type."""
@@ -344,6 +339,23 @@ class AsyncioPahoClient(paho.Client):
         if easy_log is not None:
             easy_log(level, fmt, *args)
 
+
+class _EventType(Enum):
+    ON_CONNECT = auto()
+    ON_CONNECT_FAILED = auto()
+    ON_MESSAGE = auto()
+    ON_SUBSCRIBE = auto()
+    ON_PUBLISH = auto()
+
+
+class _Listeners:
+    def __init__(
+        self, client: AsyncioPahoClient, loop: asyncio.AbstractEventLoop
+    ) -> None:
+        self._client = client
+        self._event_loop = loop
+        self._async_listeners: dict[_EventType, list] = {}
+
     def _get_async_listeners(self, event_type: _EventType) -> list:
         return self._async_listeners.setdefault(event_type, [])
 
@@ -366,3 +378,87 @@ class AsyncioPahoClient(paho.Client):
         async_listeners = self._get_async_listeners(event_type)
         for listener in async_listeners:
             self._event_loop.create_task(listener(*args))
+
+    def add_on_connect(
+        self,
+        callback: Callable[[paho.Client, Any, dict[str, Any], int], Awaitable[None]]
+        | Callable[
+            [paho.Client, Any, dict[str, Any], paho.ReasonCodes, paho.Properties],
+            Awaitable[None],
+        ],
+        is_high_pri: bool = False,
+    ) -> Callable[[], None]:
+        """Add on_connect async listener."""
+        paho.Client.on_connect.fset(self._client, self._on_connect_forwarder)  # type: ignore
+        return self._add_async_listener(_EventType.ON_CONNECT, callback, is_high_pri)
+
+    def _on_connect_forwarder(self, *args):
+        self._async_forwarder(_EventType.ON_CONNECT, *args)
+
+    def add_on_connect_fail(
+        self,
+        callback: Callable[[paho.Client, Any], Awaitable[None]],
+        is_high_pri: bool = False,
+    ) -> Callable[[], None]:
+        """Add on_connect_fail async listener."""
+        on_connect_fail = paho.Client.on_connect_fail
+        on_connect_fail.fset(self._client, self._on_connect_fail_forwarder)  # type: ignore
+        return self._add_async_listener(
+            _EventType.ON_CONNECT_FAILED, callback, is_high_pri
+        )
+
+    def _on_connect_fail_forwarder(self, *args):
+        self._async_forwarder(_EventType.ON_CONNECT_FAILED, *args)
+
+    def add_on_message(
+        self,
+        callback: Callable[[paho.Client, Any, paho.MQTTMessage], Awaitable[None]],
+    ) -> Callable[[], None]:
+        """Add on_connect_fail async listener."""
+
+        def forwarder(*args):
+            self._async_forwarder(_EventType.ON_MESSAGE, *args)
+
+        paho.Client.on_message.fset(self._client, forwarder)  # type: ignore
+        return self._add_async_listener(_EventType.ON_MESSAGE, callback)
+
+    def message_callback_add(
+        self,
+        sub: str,
+        callback: Callable[[paho.Client, Any, paho.MQTTMessage], Awaitable[None]],
+    ) -> None:
+        """Register an async message callback for a specific topic."""
+
+        def forwarder(*args):
+            self._event_loop.create_task(callback(*args))
+
+        self._client.message_callback_add(sub, forwarder)
+
+    def add_on_subscribe(
+        self,
+        callback: Callable[[paho.Client, Any, int, tuple[int, ...]], Awaitable[None]]
+        | Callable[
+            [paho.Client, Any, int, list[int], paho.Properties], Awaitable[None]
+        ],
+        is_high_pri: bool = False,
+    ) -> Callable[[], None]:
+        """Add on_subscribe async listener."""
+
+        def forwarder(*args):
+            self._async_forwarder(_EventType.ON_SUBSCRIBE, *args)
+
+        paho.Client.on_subscribe.fset(self._client, forwarder)  # type: ignore
+        return self._add_async_listener(_EventType.ON_SUBSCRIBE, callback, is_high_pri)
+
+    def add_on_publish(
+        self,
+        callback: Callable[[paho.Client, Any, int], Awaitable[None]],
+        is_high_pri: bool = False,
+    ) -> Callable[[], None]:
+        """Add on_publish async listener."""
+
+        def forwarder(*args):
+            self._async_forwarder(_EventType.ON_PUBLISH, *args)
+
+        paho.Client.on_publish.fset(self._client, forwarder)  # type: ignore
+        return self._add_async_listener(_EventType.ON_PUBLISH, callback, is_high_pri)

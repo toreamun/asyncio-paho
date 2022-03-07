@@ -28,7 +28,7 @@ pip install asyncio-paho
 
 ## Usage
 
-You should use Paho [`connect_async()`](https://github.com/eclipse/paho.mqtt.python#connect_async) or extension [`asyncio_connect()`](#asyncio_connect) when connecting to avoid blocking.
+You should use Paho [`connect_async()`](https://github.com/eclipse/paho.mqtt.python#connect_async) or extension [`asyncio_connect()`](#asyncio_connect) when connecting to avoid blocking. It is often usefull to configure subscriptions in on_connect callback to make sure all subscriptions is also setup on reconnect after connection loss.
 
 ### Drop-in replacement
 
@@ -70,16 +70,35 @@ async with AsyncioPahoClient() as client:
     await client.asyncio_connect("mqtt.eclipseprojects.io")
 ```
 
+### asyncio_subscribe
+
+The classic Paho [`connect()`](https://github.com/eclipse/paho.mqtt.python#subscribe) returns before the subscriptions is acknowledged by the broker, and [`on_subscribe`](https://github.com/eclipse/paho.mqtt.python#on_subscribe) / `asyncio_listeners.add_on_subscribe()` has to be uses to capture the acknowledge if needed. The async extension `asyncio_subscribe()` can be used to subscribe and wait for the acknowledge without blocking. It is often usefull to configure subscriptions when connecting to make sure subscriptions are reconfigured on reconnect (connection lost).
+
+```python
+async def on_connect_async(client, userdata, flags_dict, result):
+    await client.asyncio_subscribe("mytopic")
+
+async def on_message_async(client, userdata, msg):
+    print(f"Received from {msg.topic}: {str(msg.payload)}")
+
+async with AsyncioPahoClient() as client:
+    client.asyncio_listeners.add_on_connect(on_connect_async)
+    client.asyncio_listeners.add_on_message(on_message_async)
+    await client.asyncio_connect("mqtt.eclipseprojects.io")
+```
+
 ### Callbacks
 
 Paho has a lot of callbacks. Async alternatives have been added for some of them, but they are mutally exclusive (you have to pick sync or async for eatch callback type). Multiple async listeners can be added to the same event, and a function handle to unsubscribe is returned when adding.
 
-| Classic Paho                                                               | Extension alternative                  | Called when                                                          |
-| -------------------------------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------------- |
-| [on_connect](https://github.com/eclipse/paho.mqtt.python#callback-connect) | asyncio_add_on_connect_listener()      | the broker responds to our connection                                |
-| on_connect_fail                                                            | asyncio_add_on_connect_fail_listener() | the client failed to connect to the broker                           |
-| [on_message](https://github.com/eclipse/paho.mqtt.python#on_message)       | asyncio_add_on_message_listener()      | a message has been received on a topic that the client subscribes to |
-| [on_subscribe](https://github.com/eclipse/paho.mqtt.python#on_subscribe)   | asyncio_add_on_subscribe_listener()    | the broker responds to a subscribe request                      |
+| Classic Paho                                                                             | Extension alternative                    | Called when                                                                                     |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| [on_connect](https://github.com/eclipse/paho.mqtt.python#callback-connect)               | asyncio_listeners.add_on_connect()       | the broker responds to our connection                                                           |
+| on_connect_fail                                                                          | asyncio_listeners.add_on_connect_fail()  | the client failed to connect to the broker                                                      |
+| [on_message](https://github.com/eclipse/paho.mqtt.python#on_message)                     | asyncio_listeners.add_on_message()       | a message has been received on a topic that the client subscribes to                            |
+| [message_callback_add](https://github.com/eclipse/paho.mqtt.python#message_callback_add) | asyncio_listeners.message_callback_add() | a message has been received on a topic for specific subscription filters                        |
+| [on_subscribe](https://github.com/eclipse/paho.mqtt.python#on_subscribe)                 | asyncio_listeners.add_on_subscribe()     | the broker responds to a subscribe request                                                      |
+| [on_publish](https://github.com/eclipse/paho.mqtt.python#on_publish)                     | asyncio_listeners.add_on_publish()       | a message that was to be sent using the publish() call has completed transmission to the broker |
 
 ```python
 
@@ -89,6 +108,30 @@ async def on_connect_async(client, userdata, message) -> None:
 async with AsyncioPahoClient() as client:
     client.asyncio_add_on_connect_listener(on_connect_async)
     await client.asyncio_connect("mqtt.eclipseprojects.io")
+```
+
+#### asyncio_listeners.add_on_connect()
+
+Add async on_connect event listener.
+
+MQTT v3 callback signature:
+
+```python
+async def callback(client: AsyncioPahoClient, userdata: Any, flags: dict[str, Any], rc: int)
+```
+
+MQTT v5 callback signature:
+
+```python
+async def callback(client: AsyncioPahoClient, userdata: Any, flags: dict[str, reasonCode: ReasonCodes, properties: Properties])
+```
+
+#### asyncio_listeners.add_on_message()
+
+Add async on_connect event listener. Callback signature:
+
+```python
+async def callback(client: AsyncioPahoClient, userdata: Any, msg: MQTTMessage)
 ```
 
 ## Dependencies
