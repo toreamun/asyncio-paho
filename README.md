@@ -63,7 +63,7 @@ The client has some additional async features (functions prefixed with `asyncio_
 
 ### asyncio_connect
 
-The classic Paho [`connect()`](https://github.com/eclipse/paho.mqtt.python#connect) is blocking. Paho [`connect_async()`](https://github.com/eclipse/paho.mqtt.python#connect_async) is not blocking, but returns before the connect is complete. Use `asyncio_connect()` to wait for connect to complete without blocking. This function also throws exception on connect failure. Please not that `asyncio_connect()` cannot be used together with `on_connect` /`on_connect_fail` (use `asyncio_add_on_connect_listener` and `asyncio_add_on_connect_fail_listener` instead of `on_connect` and `on_connect_fail`).
+The classic Paho [`connect()`](https://github.com/eclipse/paho.mqtt.python#connect) is blocking. Paho [`connect_async()`](https://github.com/eclipse/paho.mqtt.python#connect_async) is not blocking, but returns before the connect is complete. Use `asyncio_connect()` to wait for connect to complete without blocking. This function also throws exception on connect failure. Please note that `asyncio_connect()` cannot be used together with `on_connect` /`on_connect_fail` (use `asyncio_add_on_connect_listener` and `asyncio_add_on_connect_fail_listener` instead of `on_connect` and `on_connect_fail`).
 
 ```python
 async with AsyncioPahoClient() as client:
