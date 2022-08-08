@@ -35,7 +35,7 @@ class AsyncioPahoClient(paho.Client):
             transport,
             reconnect_on_failure,
         )
-        self._event_loop = loop if loop else asyncio.get_event_loop()
+        self._event_loop = loop if loop else asyncio.get_running_loop()
         self._userdata = userdata
         self._reconnect_on_failure = reconnect_on_failure
         self._is_disconnecting = False
