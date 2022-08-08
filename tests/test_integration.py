@@ -80,17 +80,18 @@ async def test_connect_publish_subscribe(event_loop: asyncio.AbstractEventLoop, 
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("protocol", [paho.MQTTv31, paho.MQTTv311, paho.MQTTv5])
 @pytest.mark.parametrize("qos", [0, 1, 2])
-async def test_async_connect_publish_subscribe_mqtt3(
-    event_loop: asyncio.AbstractEventLoop, caplog, qos
+async def test_async_connect_publish_subscribe(
+    event_loop: asyncio.AbstractEventLoop, caplog, protocol, qos
 ):
     """Test connect."""
     caplog.set_level(logging.DEBUG)
     subscribed_future = event_loop.create_future()
-    done_future = event_loop.create_future()
-    test_topic = f"{TOPIC}/{uuid.uuid4()}"
+    received_future = event_loop.create_future()
+    test_topic = f"{TOPIC}/{protocol}/{uuid.uuid4()}"
 
-    async def on_connect_async(
+    async def on_connect_v3_async(
         client: AsyncioPahoClient,
         userdata: Any,
         flags_dict: dict[str, Any],
@@ -105,38 +106,7 @@ async def test_async_connect_publish_subscribe_mqtt3(
         nonlocal subscribed_future
         subscribed_future.set_result(subscribe_result)
 
-    async def on_message_async(client, userdata, msg: paho.MQTTMessage):
-        # pylint: disable=unused-argument
-        print(f"Received from {msg.topic}: {str(msg.payload)}")
-        nonlocal done_future
-        done_future.set_result(msg)
-
-    async with AsyncioPahoClient(loop=event_loop) as client:
-        client.asyncio_listeners.add_on_connect(on_connect_async)
-        client.asyncio_listeners.add_on_message(on_message_async)
-        client.on_log = lambda client, userdata, level, buf: print(f"LOG: {buf}")
-
-        await client.asyncio_connect(MQTT_HOST)
-        await subscribed_future
-
-        await client.asyncio_publish(test_topic, "this is a test", qos=qos)
-        received: paho.MQTTMessage = await done_future
-        assert received.payload == b"this is a test"
-        assert received.qos == qos
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("qos", [0, 1, 2])
-async def test_async_connect_publish_subscribe_mqtt5(
-    event_loop: asyncio.AbstractEventLoop, caplog, qos
-):
-    """Test connect."""
-    caplog.set_level(logging.DEBUG)
-
-    done_future = event_loop.create_future()
-    test_topic = f"{TOPIC}/{uuid.uuid4()}"
-
-    async def on_connect_async(
+    async def on_connect_v5_async(
         client: AsyncioPahoClient,
         userdata: Any,
         flags: dict[str, Any],
@@ -149,24 +119,29 @@ async def test_async_connect_publish_subscribe_mqtt5(
         print(
             f"Connected and subscribed to topic {test_topic} with result {subscribe_result}"
         )
+        nonlocal subscribed_future
+        subscribed_future.set_result(subscribe_result)
 
     async def on_message_async(client, userdata, msg: paho.MQTTMessage):
         # pylint: disable=unused-argument
         print(f"Received from {msg.topic}: {str(msg.payload)}")
-        nonlocal done_future
-        done_future.set_result(msg)
+        nonlocal received_future
+        received_future.set_result(msg)
 
-    async with AsyncioPahoClient(loop=event_loop, protocol=paho.MQTTv5) as client:
-        client.asyncio_listeners.add_on_connect(on_connect_async)
+    async with AsyncioPahoClient(loop=event_loop, protocol=protocol) as client:
+        if protocol == paho.MQTTv5:
+            #            client.asyncio_listeners.add_on_connect(on_connect_v3_async)
+            client.asyncio_listeners.add_on_connect(on_connect_v5_async)
+        else:
+            client.asyncio_listeners.add_on_connect(on_connect_v3_async)
+
         client.asyncio_listeners.add_on_message(on_message_async)
         client.on_log = lambda client, userdata, level, buf: print(f"LOG: {buf}")
 
-        await client.asyncio_connect(
-            MQTT_HOST,
-        )
+        await client.asyncio_connect(MQTT_HOST)
+        await subscribed_future
 
         await client.asyncio_publish(test_topic, "this is a test", qos=qos)
-
-        received: paho.MQTTMessage = await done_future
+        received: paho.MQTTMessage = await received_future
         assert received.payload == b"this is a test"
         assert received.qos == qos
