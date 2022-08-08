@@ -178,7 +178,8 @@ class AsyncioPahoClient(paho.Client):
         )
         try:
             result = super().publish(topic, payload, qos, retain, properties)
-            result.is_published()
+            while not result.is_published():
+                await asyncio.sleep(0.001)
             return await subscribed_future
         finally:
             unsubscribe()
