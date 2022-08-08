@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from typing import Any
 
 import paho.mqtt.client as paho
@@ -21,18 +22,19 @@ async def test_connect_publish_subscribe(event_loop: asyncio.AbstractEventLoop, 
     subscribed_future = event_loop.create_future()
     done_future = event_loop.create_future()
     subscribe_result: tuple[int, int] = (-1, -1)
+    test_topic = f"{TOPIC}/{uuid.uuid4()}"
 
     def on_connect(
         client: paho.Client, userdata: Any, flags_dict: dict[str, Any], result: int
     ) -> None:
         # pylint: disable=unused-argument
         nonlocal subscribe_result
-        subscribe_result = client.subscribe(TOPIC)
+        subscribe_result = client.subscribe(test_topic)
 
         assert subscribe_result[0] == paho.MQTT_ERR_SUCCESS
 
         print(
-            f"Connected and subscribed to topic {TOPIC} with result {subscribe_result}"
+            f"Connected and subscribed to topic {test_topic} with result {subscribe_result}"
         )
 
     def on_connect_fail(client: paho.Client, userdata: Any) -> None:
@@ -70,7 +72,7 @@ async def test_connect_publish_subscribe(event_loop: asyncio.AbstractEventLoop, 
 
         # wait for subscription be done before publishing
         await subscribed_future
-        client.publish(TOPIC, "this is a test")
+        client.publish(test_topic, "this is a test")
 
         received = await done_future
 
@@ -78,13 +80,15 @@ async def test_connect_publish_subscribe(event_loop: asyncio.AbstractEventLoop, 
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("qos", [0, 1, 2])
 async def test_async_connect_publish_subscribe_mqtt3(
-    event_loop: asyncio.AbstractEventLoop, caplog
+    event_loop: asyncio.AbstractEventLoop, caplog, qos
 ):
     """Test connect."""
     caplog.set_level(logging.DEBUG)
-
+    subscribed_future = event_loop.create_future()
     done_future = event_loop.create_future()
+    test_topic = f"{TOPIC}/{uuid.uuid4()}"
 
     async def on_connect_async(
         client: AsyncioPahoClient,
@@ -93,17 +97,19 @@ async def test_async_connect_publish_subscribe_mqtt3(
         result: int,
     ) -> None:
         # pylint: disable=unused-argument
-        subscribe_result = await client.asyncio_subscribe(TOPIC)
+        subscribe_result = await client.asyncio_subscribe(test_topic, qos=2)
         assert subscribe_result[0] == paho.MQTT_ERR_SUCCESS
         print(
-            f"Connected and subscribed to topic {TOPIC} with result {subscribe_result}"
+            f"Connected and subscribed to topic {test_topic} with result {subscribe_result}"
         )
+        nonlocal subscribed_future
+        subscribed_future.set_result(subscribe_result)
 
     async def on_message_async(client, userdata, msg: paho.MQTTMessage):
         # pylint: disable=unused-argument
         print(f"Received from {msg.topic}: {str(msg.payload)}")
         nonlocal done_future
-        done_future.set_result(msg.payload)
+        done_future.set_result(msg)
 
     async with AsyncioPahoClient(loop=event_loop) as client:
         client.asyncio_listeners.add_on_connect(on_connect_async)
@@ -111,24 +117,24 @@ async def test_async_connect_publish_subscribe_mqtt3(
         client.on_log = lambda client, userdata, level, buf: print(f"LOG: {buf}")
 
         await client.asyncio_connect(MQTT_HOST)
+        await subscribed_future
 
-        await client.asyncio_publish(TOPIC, "this is a test", qos=0)
-        await client.asyncio_publish(TOPIC, "this is a test", qos=1)
-        await client.asyncio_publish(TOPIC, "this is a test", qos=2)
-
-        received = await done_future
-
-        assert received == b"this is a test"
+        await client.asyncio_publish(test_topic, "this is a test", qos=qos)
+        received: paho.MQTTMessage = await done_future
+        assert received.payload == b"this is a test"
+        assert received.qos == qos
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("qos", [0, 1, 2])
 async def test_async_connect_publish_subscribe_mqtt5(
-    event_loop: asyncio.AbstractEventLoop, caplog
+    event_loop: asyncio.AbstractEventLoop, caplog, qos
 ):
     """Test connect."""
     caplog.set_level(logging.DEBUG)
 
     done_future = event_loop.create_future()
+    test_topic = f"{TOPIC}/{uuid.uuid4()}"
 
     async def on_connect_async(
         client: AsyncioPahoClient,
@@ -138,17 +144,17 @@ async def test_async_connect_publish_subscribe_mqtt5(
         properties: paho.Properties,
     ) -> None:
         # pylint: disable=unused-argument
-        subscribe_result = await client.asyncio_subscribe(TOPIC)
+        subscribe_result = await client.asyncio_subscribe(test_topic, qos=2)
         assert subscribe_result[0] == paho.MQTT_ERR_SUCCESS
         print(
-            f"Connected and subscribed to topic {TOPIC} with result {subscribe_result}"
+            f"Connected and subscribed to topic {test_topic} with result {subscribe_result}"
         )
 
     async def on_message_async(client, userdata, msg: paho.MQTTMessage):
         # pylint: disable=unused-argument
         print(f"Received from {msg.topic}: {str(msg.payload)}")
         nonlocal done_future
-        done_future.set_result(msg.payload)
+        done_future.set_result(msg)
 
     async with AsyncioPahoClient(loop=event_loop, protocol=paho.MQTTv5) as client:
         client.asyncio_listeners.add_on_connect(on_connect_async)
@@ -159,10 +165,8 @@ async def test_async_connect_publish_subscribe_mqtt5(
             MQTT_HOST,
         )
 
-        await client.asyncio_publish(TOPIC, "this is a test", qos=0)
-        await client.asyncio_publish(TOPIC, "this is a test", qos=1)
-        await client.asyncio_publish(TOPIC, "this is a test", qos=2)
+        await client.asyncio_publish(test_topic, "this is a test", qos=qos)
 
-        received = await done_future
-
-        assert received == b"this is a test"
+        received: paho.MQTTMessage = await done_future
+        assert received.payload == b"this is a test"
+        assert received.qos == qos
