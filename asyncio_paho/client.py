@@ -41,6 +41,7 @@ class AsyncioPahoClient(paho.Client):
         self._is_disconnecting = False
         self._is_connect_async = False
         self._connect_ex: Exception | None = None
+        self._connect_callback_ex: Exception | None = None
         self._loop_misc_task: asyncio.Task | None = None
 
         self._asyncio_listeners = _Listeners(self, self._event_loop)
@@ -132,10 +133,12 @@ class AsyncioPahoClient(paho.Client):
         async def connect_callback(*args):
             # pylint: disable=unused-argument
             nonlocal connect_future
-            if self._connect_ex:
-                connect_future.set_exception(self._connect_ex)
+            if self._connect_callback_ex or self._connect_ex:
+                connect_future.set_exception(
+                    self._connect_ex if self._connect_ex else self._connect_callback_ex
+                )
             else:
-                connect_future.set_result(self._connect_ex)
+                connect_future.set_result(None)
 
         unsubscribe_connect = self.asyncio_listeners.add_on_connect(
             connect_callback, is_high_pri=True
@@ -394,7 +397,11 @@ class _Listeners:
         return self._add_async_listener(_EventType.ON_CONNECT, callback, is_high_pri)
 
     def _on_connect_forwarder(self, *args):
-        self._async_forwarder(_EventType.ON_CONNECT, *args)
+        self._client._connect_callback_ex = None  # pylint: disable=protected-access
+        try:
+            self._async_forwarder(_EventType.ON_CONNECT, *args)
+        except Exception as ex:  # pylint: disable=broad-except
+            self._client._connect_callback_ex = ex  # pylint: disable=protected-access
 
     def add_on_connect_fail(
         self,
