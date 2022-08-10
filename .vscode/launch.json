@@ -10,7 +10,11 @@
                 "debug-test"
             ],
             "console": "integratedTerminal",
-            "justMyCode": false
+            "justMyCode": false,
+            "pythonArgs": [
+                "-X",
+                "dev"
+            ]
         }
     ]
 }
