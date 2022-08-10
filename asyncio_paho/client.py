@@ -44,7 +44,7 @@ class AsyncioPahoClient(paho.Client):
         self._connect_callback_ex: Exception | None = None
         self._loop_misc_task: asyncio.Task | None = None
 
-        self._asyncio_listeners = _Listeners(self, self._event_loop)
+        self._asyncio_listeners = _Listeners(self, self._event_loop, self._log)
         self.on_socket_open = self._on_socket_open_asyncio
         self.on_socket_close = self._on_socket_close_asyncio
         self.on_socket_register_write = self._on_socket_register_write_asyncio
@@ -356,11 +356,27 @@ class _EventType(Enum):
 
 class _Listeners:
     def __init__(
-        self, client: AsyncioPahoClient, loop: asyncio.AbstractEventLoop
+        self, client: AsyncioPahoClient, loop: asyncio.AbstractEventLoop, log
     ) -> None:
         self._client = client
         self._event_loop = loop
         self._async_listeners: dict[_EventType, list] = {}
+        self._log: Callable = log
+
+    def _handle_callback_result(self, task: asyncio.Task) -> None:
+        try:
+            task.result()
+            self._log(
+                paho.MQTT_LOG_DEBUG, "%s callback task completed", task.get_name()
+            )
+        except asyncio.CancelledError:
+            pass  # Task cancellation should not be logged as an error.
+        except Exception:  # pylint: disable=broad-except
+            self._log(
+                paho.MQTT_LOG_WARNING,
+                "Exception raised by %s callback task",
+                task.get_name(),
+            )
 
     def _get_async_listeners(self, event_type: _EventType) -> list:
         return self._async_listeners.setdefault(event_type, [])
@@ -383,7 +399,9 @@ class _Listeners:
     def _async_forwarder(self, event_type: _EventType, *args):
         async_listeners = self._get_async_listeners(event_type)
         for listener in async_listeners:
-            self._event_loop.create_task(listener(*args))
+            self._event_loop.create_task(
+                listener(*args), name=event_type.name
+            ).add_done_callback(self._handle_callback_result)
 
     def add_on_connect(
         self,
@@ -440,7 +458,9 @@ class _Listeners:
         """Register an async message callback for a specific topic."""
 
         def forwarder(*args):
-            self._event_loop.create_task(callback(*args))
+            self._event_loop.create_task(
+                callback(*args), name="message_callback"
+            ).add_done_callback(self._handle_callback_result)
 
         self._client.message_callback_add(sub, forwarder)
 
