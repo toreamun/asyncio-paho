@@ -62,6 +62,8 @@ class AsyncioPahoClient(paho.Client):
                 await self._loop_misc_task
             except asyncio.CancelledError:
                 return
+            except Exception as ex:  # pylint: disable=broad-except
+                self._log(paho.MQTT_LOG_WARNING, "Error from loop_misc: %s", ex)
 
     @property
     def asyncio_listeners(self):

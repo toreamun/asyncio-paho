@@ -182,3 +182,15 @@ async def test_async_connect_publish_subscribe_retained(
 
         # remove retained
         await client_retained.asyncio_publish(test_topic, None)
+
+
+@pytest.mark.asyncio
+async def test_connect_connection_refused(
+    event_loop: asyncio.AbstractEventLoop, caplog
+):
+    """Test ConnectionRefusedError."""
+    caplog.set_level(logging.DEBUG)
+
+    async with AsyncioPahoClient(loop=event_loop) as client:
+        with pytest.raises(ConnectionRefusedError):
+            await client.asyncio_connect("127.0.0.1", 1)
