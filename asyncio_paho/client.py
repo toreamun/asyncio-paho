@@ -273,7 +273,19 @@ class AsyncioPahoClient(paho.Client):
         self._event_loop.remove_writer(sock)
 
     def _ensure_loop_misc_started(self) -> None:
-        if self._loop_misc_task is None or self._loop_misc_task.done():
+        if self._loop_misc_task is None:
+            self._loop_misc_task = self._event_loop.create_task(self._loop_misc())
+
+        if self._loop_misc_task.done():
+            try:
+                self._loop_misc_task.result()
+                self._log(paho.MQTT_LOG_DEBUG, "loop_misc task was done.")
+            except asyncio.CancelledError:
+                pass  # Task cancellation should not be logged as an error.
+            except Exception as ex:  # pylint: disable=broad-except
+                self._log(
+                    paho.MQTT_LOG_WARNING, "Exception raised by loop_misc task: %s", ex
+                )
             self._loop_misc_task = self._event_loop.create_task(self._loop_misc())
 
     async def _loop_misc(self) -> None:
