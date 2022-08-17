@@ -20,6 +20,13 @@ CONNECTION_ERROR_CODES = {
 }
 
 
+def connect_result_code_to_exception(result_code: int):
+    """Create exception from connect result code."""
+    if result_code in (4, 5):
+        return AsyncioMqttAuthError(result_code)
+    return AsyncioMqttConnectError(result_code)
+
+
 class AsyncioMqttConnectError(MQTTException):
     """MQTT connect error."""
 
@@ -189,10 +196,7 @@ class AsyncioPahoClient(paho.Client):
 
             if not ignore_connect_error and result_code != paho.MQTT_ERR_SUCCESS:
                 self.disconnect(result_code, properties)
-
-                if result_code in (4, 5):
-                    raise AsyncioMqttAuthError(result_code)
-                raise AsyncioMqttConnectError(result_code)
+                raise connect_result_code_to_exception(result_code)
 
             return result_code
         finally:
