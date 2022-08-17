@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="UTF-8") as fh:
 
 setuptools.setup(
     name="asyncio_paho",
-    version="0.4.3",
+    version="0.5.0",
     author="Tore Amundsen",
     author_email="tore@amundsen.org",
     description="A Paho MQTT client supporting asyncio loop without additional setup.",

@@ -9,9 +9,11 @@ from typing import Any
 import paho.mqtt.client as paho
 import pytest
 from asyncio_paho import AsyncioPahoClient
+from asyncio_paho.client import AsyncioMqttAuthError
 
 TOPIC = "asyncioclient"
 MQTT_HOST = "test.mosquitto.org"
+MQTT_PORT_TCP_AUTH = 1884
 
 
 @pytest.mark.asyncio
@@ -194,3 +196,14 @@ async def test_connect_connection_refused(
     async with AsyncioPahoClient(loop=event_loop) as client:
         with pytest.raises(ConnectionRefusedError):
             await client.asyncio_connect("127.0.0.1", 1)
+
+
+@pytest.mark.asyncio
+async def test_connect_not_authorised(event_loop: asyncio.AbstractEventLoop, caplog):
+    """Test ConnectionRefusedError."""
+    caplog.set_level(logging.DEBUG)
+
+    async with AsyncioPahoClient(loop=event_loop) as client:
+        client.username_pw_set("unknown_username", "")
+        with pytest.raises(AsyncioMqttAuthError):
+            await client.asyncio_connect(MQTT_HOST, MQTT_PORT_TCP_AUTH)

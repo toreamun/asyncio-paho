@@ -9,6 +9,33 @@ from enum import Enum, auto
 from typing import Any
 
 import paho.mqtt.client as paho
+from paho.mqtt import MQTTException
+
+CONNECTION_ERROR_CODES = {
+    1: "Connection refused - incorrect protocol version",
+    2: "Connection refused - invalid client identifier",
+    3: "Connection refused - server unavailable",
+    4: "Connection refused - bad username or password",
+    5: "Connection refused - not authorised",
+}
+
+
+class AsyncioMqttConnectError(MQTTException):
+    """MQTT connect error."""
+
+    def __init__(self, result_code):
+        """Initialize AsyncioMqttConnectError."""
+        self.result_code = result_code
+        self.message = CONNECTION_ERROR_CODES.get(result_code, "Unexpected code")
+        super().__init__(self.message)
+
+    def __str__(self):
+        """Get exception string representation."""
+        return f"{self.result_code} - {self.message}"
+
+
+class AsyncioMqttAuthError(AsyncioMqttConnectError):
+    """MQTT authentication error."""
 
 
 class AsyncioPahoClient(paho.Client):
@@ -102,6 +129,7 @@ class AsyncioPahoClient(paho.Client):
         self._is_disconnecting = True
         if self._loop_misc_task:
             self._loop_misc_task.cancel()
+            self._loop_misc_task = None
         return result
 
     async def asyncio_connect(
@@ -113,10 +141,13 @@ class AsyncioPahoClient(paho.Client):
         bind_port: int = 0,
         clean_start: bool | int = paho.MQTT_CLEAN_START_FIRST_ONLY,
         properties: paho.Properties | None = None,
+        ignore_connect_error: bool = False,
     ) -> None:
         # pylint: disable=too-many-arguments
         """Connect to a remote broker asynchronously and return when done."""
         connect_future = self._event_loop.create_future()
+        self._connect_callback_ex = None
+        self._connect_callback_ex = None
 
         if self.on_connect not in (
             None,
@@ -140,7 +171,8 @@ class AsyncioPahoClient(paho.Client):
                     self._connect_ex if self._connect_ex else self._connect_callback_ex
                 )
             else:
-                connect_future.set_result(None)
+                result_code = args[3]
+                connect_future.set_result(result_code)
 
         unsubscribe_connect = self.asyncio_listeners.add_on_connect(
             connect_callback, is_high_pri=True
@@ -152,7 +184,17 @@ class AsyncioPahoClient(paho.Client):
             self.connect_async(
                 host, port, keepalive, bind_address, bind_port, clean_start, properties
             )
-            await connect_future
+
+            result_code = await connect_future
+
+            if not ignore_connect_error and result_code != paho.MQTT_ERR_SUCCESS:
+                self.disconnect(result_code, properties)
+
+                if result_code in (4, 5):
+                    raise AsyncioMqttAuthError(result_code)
+                raise AsyncioMqttConnectError(result_code)
+
+            return result_code
         finally:
             unsubscribe_connect()
             unsubscribe_connect_fail()
