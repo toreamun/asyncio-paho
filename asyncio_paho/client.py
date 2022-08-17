@@ -33,7 +33,9 @@ class AsyncioMqttConnectError(MQTTException):
     def __init__(self, result_code):
         """Initialize AsyncioMqttConnectError."""
         self.result_code = result_code
-        self.message = CONNECTION_ERROR_CODES.get(result_code, "Unexpected code")
+        self.message = CONNECTION_ERROR_CODES.get(
+            result_code, paho.error_string(result_code)
+        )
         super().__init__(self.message)
 
     def __str__(self):
