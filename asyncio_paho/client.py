@@ -459,7 +459,7 @@ class _Listeners:
 
         return unsubscribe
 
-    def _async_forwarder(self, event_type: _EventType, *args):
+    def _async_forwarder(self, event_type: _EventType, *args: Any) -> None:
         async_listeners = self._get_async_listeners(event_type)
         for listener in async_listeners:
             self._event_loop.create_task(
@@ -476,10 +476,10 @@ class _Listeners:
         is_high_pri: bool = False,
     ) -> Callable[[], None]:
         """Add on_connect async listener."""
-        paho.Client.on_connect.fset(self._client, self._on_connect_forwarder)  # type: ignore
+        paho.Client.on_connect.fset(self._client, self._on_connect_forwarder)
         return self._add_async_listener(_EventType.ON_CONNECT, callback, is_high_pri)
 
-    def _on_connect_forwarder(self, *args):
+    def _on_connect_forwarder(self, *args: Any) -> None:
         self._client._connect_callback_ex = None  # pylint: disable=protected-access
         try:
             self._async_forwarder(_EventType.ON_CONNECT, *args)
@@ -493,12 +493,12 @@ class _Listeners:
     ) -> Callable[[], None]:
         """Add on_connect_fail async listener."""
         on_connect_fail = paho.Client.on_connect_fail
-        on_connect_fail.fset(self._client, self._on_connect_fail_forwarder)  # type: ignore
+        on_connect_fail.fset(self._client, self._on_connect_fail_forwarder)
         return self._add_async_listener(
             _EventType.ON_CONNECT_FAILED, callback, is_high_pri
         )
 
-    def _on_connect_fail_forwarder(self, *args):
+    def _on_connect_fail_forwarder(self, *args: Any) -> None:
         self._async_forwarder(_EventType.ON_CONNECT_FAILED, *args)
 
     def add_on_message(
@@ -507,10 +507,10 @@ class _Listeners:
     ) -> Callable[[], None]:
         """Add on_connect_fail async listener."""
 
-        def forwarder(*args):
+        def forwarder(*args: Any) -> None:
             self._async_forwarder(_EventType.ON_MESSAGE, *args)
 
-        paho.Client.on_message.fset(self._client, forwarder)  # type: ignore
+        paho.Client.on_message.fset(self._client, forwarder)
         return self._add_async_listener(_EventType.ON_MESSAGE, callback)
 
     def message_callback_add(
@@ -520,7 +520,7 @@ class _Listeners:
     ) -> None:
         """Register an async message callback for a specific topic."""
 
-        def forwarder(*args):
+        def forwarder(*args: Any) -> None:
             self._event_loop.create_task(
                 callback(*args), name="message_callback"
             ).add_done_callback(self._handle_callback_result)
@@ -537,10 +537,10 @@ class _Listeners:
     ) -> Callable[[], None]:
         """Add on_subscribe async listener."""
 
-        def forwarder(*args):
+        def forwarder(*args: Any) -> None:
             self._async_forwarder(_EventType.ON_SUBSCRIBE, *args)
 
-        paho.Client.on_subscribe.fset(self._client, forwarder)  # type: ignore
+        paho.Client.on_subscribe.fset(self._client, forwarder)
         return self._add_async_listener(_EventType.ON_SUBSCRIBE, callback, is_high_pri)
 
     def add_on_publish(
@@ -550,8 +550,8 @@ class _Listeners:
     ) -> Callable[[], None]:
         """Add on_publish async listener."""
 
-        def forwarder(*args):
+        def forwarder(*args: Any) -> None:
             self._async_forwarder(_EventType.ON_PUBLISH, *args)
 
-        paho.Client.on_publish.fset(self._client, forwarder)  # type: ignore
+        paho.Client.on_publish.fset(self._client, forwarder)
         return self._add_async_listener(_EventType.ON_PUBLISH, callback, is_high_pri)
