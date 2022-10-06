@@ -4,13 +4,15 @@ from __future__ import annotations
 import asyncio
 import socket
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from enum import Enum, auto
-from typing import Any
+from typing import Any, Coroutine, Generator, List, Optional, Tuple, Union
 
-import paho.mqtt.client as paho
+import paho.mqtt.client as paho  # type: ignore
 from paho.mqtt import MQTTException
 
+AsyncCallback = Callable[[paho.Client, Any, int], Coroutine[Any, Any, None]]
+TopicList = List[Union[str, int]]
 CONNECTION_ERROR_CODES = {
     1: "Connection refused - incorrect protocol version",
     2: "Connection refused - invalid client identifier",
@@ -20,17 +22,17 @@ CONNECTION_ERROR_CODES = {
 }
 
 
-def connect_result_code_to_exception(result_code: int):
+def connect_result_code_to_exception(result_code: int) -> AsyncioMqttConnectError:
     """Create exception from connect result code."""
     if result_code in (4, 5):
         return AsyncioMqttAuthError(result_code)
     return AsyncioMqttConnectError(result_code)
 
 
-class AsyncioMqttConnectError(MQTTException):
+class AsyncioMqttConnectError(MQTTException):  # type: ignore
     """MQTT connect error."""
 
-    def __init__(self, result_code):
+    def __init__(self, result_code: int):
         """Initialize AsyncioMqttConnectError."""
         self.result_code = result_code
         self.message = CONNECTION_ERROR_CODES.get(
@@ -38,7 +40,7 @@ class AsyncioMqttConnectError(MQTTException):
         )
         super().__init__(self.message)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Get exception string representation."""
         return f"{self.result_code} - {self.message}"
 
@@ -47,7 +49,7 @@ class AsyncioMqttAuthError(AsyncioMqttConnectError):
     """MQTT authentication error."""
 
 
-class AsyncioPahoClient(paho.Client):
+class AsyncioPahoClient(paho.Client):  # type: ignore
     # pylint: disable=too-many-instance-attributes
     """Paho MQTT Client using asyncio for connection loop."""
 
@@ -59,7 +61,7 @@ class AsyncioPahoClient(paho.Client):
         protocol: int = paho.MQTTv311,
         transport: str = "tcp",
         reconnect_on_failure: bool = True,
-        loop: asyncio.AbstractEventLoop = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
     ) -> None:
         # pylint: disable=too-many-arguments
         """Initialize AsyncioPahoClient. See Paho Client for documentation."""
@@ -78,7 +80,7 @@ class AsyncioPahoClient(paho.Client):
         self._is_connect_async = False
         self._connect_ex: Exception | None = None
         self._connect_callback_ex: Exception | None = None
-        self._loop_misc_task: asyncio.Task | None = None
+        self._loop_misc_task: asyncio.Task[None] | None = None
 
         self._asyncio_listeners = _Listeners(self, self._event_loop, self._log)
         self.on_socket_open = self._on_socket_open_asyncio
@@ -90,7 +92,7 @@ class AsyncioPahoClient(paho.Client):
         """Enter contex."""
         return self
 
-    async def __aexit__(self, *args) -> None:
+    async def __aexit__(self, *args: Any, **kwargs: Any) -> None:
         """Exit context."""
         self.disconnect()
         if self._loop_misc_task:
@@ -102,7 +104,7 @@ class AsyncioPahoClient(paho.Client):
                 self._log(paho.MQTT_LOG_WARNING, "Error from loop_misc: %s", ex)
 
     @property
-    def asyncio_listeners(self):
+    def asyncio_listeners(self) -> _Listeners:
         """Async listeners."""
         return self._asyncio_listeners
 
@@ -134,7 +136,7 @@ class AsyncioPahoClient(paho.Client):
         properties: paho.Properties | None = None,
     ) -> int:
         """Disconnect a connected client from the broker."""
-        result = super().disconnect(reasoncode, properties)
+        result: int = super().disconnect(reasoncode, properties)
         self._is_disconnecting = True
         if self._loop_misc_task:
             self._loop_misc_task.cancel()
@@ -151,10 +153,10 @@ class AsyncioPahoClient(paho.Client):
         clean_start: bool | int = paho.MQTT_CLEAN_START_FIRST_ONLY,
         properties: paho.Properties | None = None,
         ignore_connect_error: bool = False,
-    ) -> None:
+    ) -> Optional[Any]:
         # pylint: disable=too-many-arguments
         """Connect to a remote broker asynchronously and return when done."""
-        connect_future = self._event_loop.create_future()
+        connect_future: asyncio.Future[int] = self._event_loop.create_future()
         self._connect_callback_ex = None
         self._connect_callback_ex = None
 
@@ -172,13 +174,13 @@ class AsyncioPahoClient(paho.Client):
                 )
             )
 
-        async def connect_callback(*args):
+        async def connect_callback(*args: Any) -> None:
             # pylint: disable=unused-argument
             nonlocal connect_future
             if self._connect_callback_ex or self._connect_ex:
-                connect_future.set_exception(
-                    self._connect_ex if self._connect_ex else self._connect_callback_ex
-                )
+                connect_exception = self._connect_ex or self._connect_callback_ex
+                assert connect_exception
+                connect_future.set_exception(connect_exception)
             else:
                 result_code = args[3]
                 connect_future.set_result(result_code)
@@ -215,7 +217,7 @@ class AsyncioPahoClient(paho.Client):
     ) -> int:
         # pylint: disable=too-many-arguments
         """Publish a message on a topic."""
-        subscribed_future = self._event_loop.create_future()
+        subscribed_future: asyncio.Future[int] = self._event_loop.create_future()
 
         result: paho.MQTTMessageInfo
 
@@ -239,16 +241,16 @@ class AsyncioPahoClient(paho.Client):
 
     async def asyncio_subscribe(
         self,
-        topic: str | tuple | list,
+        topic: str | Tuple[Union[str, List[TopicList], Any] | TopicList],
         qos: int = 0,
         options: paho.SubscribeOptions | None = None,
         properties: paho.Properties | None = None,
-    ):
+    ) -> Optional[Tuple[int, int]]:
         """Subscribe the client to one or more topics."""
         subscribed_future = self._event_loop.create_future()
         result: tuple[int, int]
 
-        async def on_subscribe(*args):
+        async def on_subscribe(*args: Any) -> None:
             # pylint: disable=unused-argument
             nonlocal result
             if result[1] == args[2]:  # mid should match if relevant
@@ -274,48 +276,50 @@ class AsyncioPahoClient(paho.Client):
         self._userdata = userdata
         super().user_data_set(userdata)
 
-    def loop_forever(self, *args, **kvarg):
+    def loop_forever(self, *args: Any) -> None:
         """Invalid operation."""
         raise NotImplementedError(
             "loop_forever() cannot be used with AsyncioPahoClient."
         )
 
-    def loop_start(self):
+    def loop_start(self) -> None:
         """Invalid operation."""
         raise NotImplementedError(
             "The threaded interface of loop_start() cannot be used with AsyncioPahoClient."
         )
 
-    def loop_stop(self, force: bool = ...):
+    def loop_stop(self, force: bool = ...) -> None:
         """Invalid operation."""
         raise NotImplementedError(
             "The threaded interface of loop_stop() cannot be used with AsyncioPahoClient."
         )
 
     def _on_socket_open_asyncio(
-        self, client: paho.Client, _, sock: socket.socket
+        self, client: paho.Client, _: Any, sock: Union[socket.socket, Any]
     ) -> None:
         self._event_loop.add_reader(sock, client.loop_read)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 2048)
+        # When transport="websockets", sock is WebsocketWrapper which has no setsockopt:
+        if isinstance(sock, socket.socket):
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 2048)
         self._ensure_loop_misc_started()
 
     def _on_socket_close_asyncio(
         self,
-        client,
-        userdata,
+        client: paho.Client,
+        userdata: Any,
         sock: socket.socket,
     ) -> None:
         # pylint: disable=unused-argument
         self._event_loop.remove_reader(sock)
 
     def _on_socket_register_write_asyncio(
-        self, client: paho.Client, userdata, sock: socket.socket
+        self, client: paho.Client, userdata: Any, sock: socket.socket
     ) -> None:
         # pylint: disable=unused-argument
         self._event_loop.add_writer(sock, client.loop_write)
 
     def _on_socket_unregister_write_asyncio(
-        self, client, userdata, sock: socket.socket
+        self, client: paho.Client, userdata: Any, sock: socket.socket
     ) -> None:
         # pylint: disable=unused-argument
         self._event_loop.remove_writer(sock)
@@ -383,10 +387,11 @@ class AsyncioPahoClient(paho.Client):
                 on_connect_fail(self, self._userdata)
             self._log(paho.MQTT_LOG_DEBUG, "Connection failed, retrying")
 
-    async def _async_reconnect_wait(self):
+    async def _async_reconnect_wait(self) -> None:
         # See reconnect_delay_set for details
         now = time.monotonic()
         with self._reconnect_delay_mutex:
+            self._reconnect_delay: int
             if self._reconnect_delay is None:
                 self._reconnect_delay = self._reconnect_min_delay
             else:
@@ -400,7 +405,7 @@ class AsyncioPahoClient(paho.Client):
         remaining = target_time - now
         await asyncio.sleep(remaining)
 
-    def _log(self, level: Any, fmt: object, *args: object):
+    def _log(self, level: Any, fmt: object, *args: object) -> None:
         easy_log = getattr(super(), "_easy_log", None)
         if easy_log is not None:
             easy_log(level, fmt, *args)
@@ -416,14 +421,17 @@ class _EventType(Enum):
 
 class _Listeners:
     def __init__(
-        self, client: AsyncioPahoClient, loop: asyncio.AbstractEventLoop, log
+        self,
+        client: AsyncioPahoClient,
+        loop: asyncio.AbstractEventLoop,
+        log: Callable[[int, str, str], None],
     ) -> None:
         self._client = client
         self._event_loop = loop
-        self._async_listeners: dict[_EventType, list] = {}
-        self._log: Callable = log
+        self._async_listeners: dict[_EventType, List[Any]] = {}
+        self._log = log
 
-    def _handle_callback_result(self, task: asyncio.Task) -> None:
+    def _handle_callback_result(self, task: asyncio.Task[None]) -> None:
         try:
             task.result()
             self._log(
@@ -438,11 +446,14 @@ class _Listeners:
                 task.get_name(),
             )
 
-    def _get_async_listeners(self, event_type: _EventType) -> list:
+    def _get_async_listeners(self, event_type: _EventType) -> List[Any]:
         return self._async_listeners.setdefault(event_type, [])
 
     def _add_async_listener(
-        self, event_type: _EventType, callback, is_high_pri=False
+        self,
+        event_type: _EventType,
+        callback: AsyncCallback,
+        is_high_pri: bool = False,
     ) -> Callable[[], None]:
         listeners = self._get_async_listeners(event_type)
         if is_high_pri:
@@ -450,13 +461,13 @@ class _Listeners:
         else:
             listeners.append(callback)
 
-        def unsubscribe():
+        def unsubscribe() -> None:
             if callback in listeners:
                 listeners.remove(callback)
 
         return unsubscribe
 
-    def _async_forwarder(self, event_type: _EventType, *args):
+    def _async_forwarder(self, event_type: _EventType, *args: Any) -> None:
         async_listeners = self._get_async_listeners(event_type)
         for listener in async_listeners:
             self._event_loop.create_task(
@@ -465,18 +476,14 @@ class _Listeners:
 
     def add_on_connect(
         self,
-        callback: Callable[[paho.Client, Any, dict[str, Any], int], Awaitable[None]]
-        | Callable[
-            [paho.Client, Any, dict[str, Any], paho.ReasonCodes, paho.Properties],
-            Awaitable[None],
-        ],
+        callback: AsyncCallback,
         is_high_pri: bool = False,
     ) -> Callable[[], None]:
         """Add on_connect async listener."""
-        paho.Client.on_connect.fset(self._client, self._on_connect_forwarder)  # type: ignore
+        paho.Client.on_connect.fset(self._client, self._on_connect_forwarder)
         return self._add_async_listener(_EventType.ON_CONNECT, callback, is_high_pri)
 
-    def _on_connect_forwarder(self, *args):
+    def _on_connect_forwarder(self, *args: Any) -> None:
         self._client._connect_callback_ex = None  # pylint: disable=protected-access
         try:
             self._async_forwarder(_EventType.ON_CONNECT, *args)
@@ -485,39 +492,42 @@ class _Listeners:
 
     def add_on_connect_fail(
         self,
-        callback: Callable[[paho.Client, Any], Awaitable[None]],
+        callback: AsyncCallback,
         is_high_pri: bool = False,
     ) -> Callable[[], None]:
         """Add on_connect_fail async listener."""
         on_connect_fail = paho.Client.on_connect_fail
-        on_connect_fail.fset(self._client, self._on_connect_fail_forwarder)  # type: ignore
+        on_connect_fail.fset(self._client, self._on_connect_fail_forwarder)
         return self._add_async_listener(
             _EventType.ON_CONNECT_FAILED, callback, is_high_pri
         )
 
-    def _on_connect_fail_forwarder(self, *args):
+    def _on_connect_fail_forwarder(self, *args: Any) -> None:
         self._async_forwarder(_EventType.ON_CONNECT_FAILED, *args)
 
     def add_on_message(
         self,
-        callback: Callable[[paho.Client, Any, paho.MQTTMessage], Awaitable[None]],
+        callback: AsyncCallback,
     ) -> Callable[[], None]:
         """Add on_connect_fail async listener."""
 
-        def forwarder(*args):
+        def forwarder(*args: Any) -> None:
             self._async_forwarder(_EventType.ON_MESSAGE, *args)
 
-        paho.Client.on_message.fset(self._client, forwarder)  # type: ignore
+        paho.Client.on_message.fset(self._client, forwarder)
         return self._add_async_listener(_EventType.ON_MESSAGE, callback)
 
     def message_callback_add(
         self,
         sub: str,
-        callback: Callable[[paho.Client, Any, paho.MQTTMessage], Awaitable[None]],
+        callback: Callable[
+            [paho.Client, Any, paho.MQTTMessage],
+            Union[Coroutine[Any, Any, None], Generator[Any, None, None]],
+        ],
     ) -> None:
         """Register an async message callback for a specific topic."""
 
-        def forwarder(*args):
+        def forwarder(*args: Any) -> None:
             self._event_loop.create_task(
                 callback(*args), name="message_callback"
             ).add_done_callback(self._handle_callback_result)
@@ -526,29 +536,26 @@ class _Listeners:
 
     def add_on_subscribe(
         self,
-        callback: Callable[[paho.Client, Any, int, tuple[int, ...]], Awaitable[None]]
-        | Callable[
-            [paho.Client, Any, int, list[int], paho.Properties], Awaitable[None]
-        ],
+        callback: AsyncCallback,
         is_high_pri: bool = False,
     ) -> Callable[[], None]:
         """Add on_subscribe async listener."""
 
-        def forwarder(*args):
+        def forwarder(*args: Any) -> None:
             self._async_forwarder(_EventType.ON_SUBSCRIBE, *args)
 
-        paho.Client.on_subscribe.fset(self._client, forwarder)  # type: ignore
+        paho.Client.on_subscribe.fset(self._client, forwarder)
         return self._add_async_listener(_EventType.ON_SUBSCRIBE, callback, is_high_pri)
 
     def add_on_publish(
         self,
-        callback: Callable[[paho.Client, Any, int], Awaitable[None]],
+        callback: AsyncCallback,
         is_high_pri: bool = False,
     ) -> Callable[[], None]:
         """Add on_publish async listener."""
 
-        def forwarder(*args):
+        def forwarder(*args: Any) -> None:
             self._async_forwarder(_EventType.ON_PUBLISH, *args)
 
-        paho.Client.on_publish.fset(self._client, forwarder)  # type: ignore
+        paho.Client.on_publish.fset(self._client, forwarder)
         return self._add_async_listener(_EventType.ON_PUBLISH, callback, is_high_pri)
