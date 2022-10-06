@@ -6,7 +6,7 @@ import socket
 import time
 from collections.abc import Awaitable, Callable
 from enum import Enum, auto
-from typing import Any
+from typing import Any, Optional, Tuple
 
 import paho.mqtt.client as paho
 from paho.mqtt import MQTTException
@@ -20,7 +20,7 @@ CONNECTION_ERROR_CODES = {
 }
 
 
-def connect_result_code_to_exception(result_code: int):
+def connect_result_code_to_exception(result_code: int) -> AsyncioMqttConnectError:
     """Create exception from connect result code."""
     if result_code in (4, 5):
         return AsyncioMqttAuthError(result_code)
@@ -30,7 +30,7 @@ def connect_result_code_to_exception(result_code: int):
 class AsyncioMqttConnectError(MQTTException):
     """MQTT connect error."""
 
-    def __init__(self, result_code):
+    def __init__(self, result_code: int):
         """Initialize AsyncioMqttConnectError."""
         self.result_code = result_code
         self.message = CONNECTION_ERROR_CODES.get(
@@ -38,7 +38,7 @@ class AsyncioMqttConnectError(MQTTException):
         )
         super().__init__(self.message)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Get exception string representation."""
         return f"{self.result_code} - {self.message}"
 
@@ -59,7 +59,7 @@ class AsyncioPahoClient(paho.Client):
         protocol: int = paho.MQTTv311,
         transport: str = "tcp",
         reconnect_on_failure: bool = True,
-        loop: asyncio.AbstractEventLoop = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
     ) -> None:
         # pylint: disable=too-many-arguments
         """Initialize AsyncioPahoClient. See Paho Client for documentation."""
@@ -102,7 +102,7 @@ class AsyncioPahoClient(paho.Client):
                 self._log(paho.MQTT_LOG_WARNING, "Error from loop_misc: %s", ex)
 
     @property
-    def asyncio_listeners(self):
+    def asyncio_listeners(self) -> _Listeners:
         """Async listeners."""
         return self._asyncio_listeners
 
@@ -243,7 +243,7 @@ class AsyncioPahoClient(paho.Client):
         qos: int = 0,
         options: paho.SubscribeOptions | None = None,
         properties: paho.Properties | None = None,
-    ):
+    ) -> Optional[Tuple[int, int]]:
         """Subscribe the client to one or more topics."""
         subscribed_future = self._event_loop.create_future()
         result: tuple[int, int]
@@ -280,13 +280,13 @@ class AsyncioPahoClient(paho.Client):
             "loop_forever() cannot be used with AsyncioPahoClient."
         )
 
-    def loop_start(self):
+    def loop_start(self) -> None:
         """Invalid operation."""
         raise NotImplementedError(
             "The threaded interface of loop_start() cannot be used with AsyncioPahoClient."
         )
 
-    def loop_stop(self, force: bool = ...):
+    def loop_stop(self, force: bool = ...) -> None:
         """Invalid operation."""
         raise NotImplementedError(
             "The threaded interface of loop_stop() cannot be used with AsyncioPahoClient."
@@ -385,7 +385,7 @@ class AsyncioPahoClient(paho.Client):
                 on_connect_fail(self, self._userdata)
             self._log(paho.MQTT_LOG_DEBUG, "Connection failed, retrying")
 
-    async def _async_reconnect_wait(self):
+    async def _async_reconnect_wait(self) -> None:
         # See reconnect_delay_set for details
         now = time.monotonic()
         with self._reconnect_delay_mutex:
@@ -402,7 +402,7 @@ class AsyncioPahoClient(paho.Client):
         remaining = target_time - now
         await asyncio.sleep(remaining)
 
-    def _log(self, level: Any, fmt: object, *args: object):
+    def _log(self, level: Any, fmt: object, *args: object) -> None:
         easy_log = getattr(super(), "_easy_log", None)
         if easy_log is not None:
             easy_log(level, fmt, *args)
@@ -452,7 +452,7 @@ class _Listeners:
         else:
             listeners.append(callback)
 
-        def unsubscribe():
+        def unsubscribe() -> None:
             if callback in listeners:
                 listeners.remove(callback)
 
