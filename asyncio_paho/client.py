@@ -23,7 +23,7 @@ CONNECTION_ERROR_CODES = {
 
 def connect_result_code_to_exception(result_code: int) -> AsyncioMqttConnectError:
     """Create exception from connect result code."""
-    if result_code in (4, 5):
+    if result_code in {4, 5}:
         return AsyncioMqttAuthError(result_code)
     return AsyncioMqttConnectError(result_code)
 
@@ -72,7 +72,7 @@ class AsyncioPahoClient(paho.Client):  # type: ignore
             transport,
             reconnect_on_failure,
         )
-        self._event_loop = loop if loop else asyncio.get_running_loop()
+        self._event_loop = loop or asyncio.get_running_loop()
         self._userdata = userdata
         self._reconnect_on_failure = reconnect_on_failure
         self._is_disconnecting = False
@@ -166,7 +166,7 @@ class AsyncioPahoClient(paho.Client):  # type: ignore
             None,
             self._asyncio_listeners._on_connect_fail_forwarder,  # pylint: disable=protected-access
         ):
-            raise Exception(
+            raise RuntimeError(
                 (
                     "async_connect cannot be used when on_connect or on_connect_fail is set. "
                     "Use asyncio_listeners instead of setting on_connect."
