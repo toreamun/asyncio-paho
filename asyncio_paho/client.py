@@ -176,9 +176,9 @@ class AsyncioPahoClient(paho.Client):  # type: ignore
             # pylint: disable=unused-argument
             nonlocal connect_future
             if self._connect_callback_ex or self._connect_ex:
-                connect_future.set_exception(
-                    self._connect_ex if self._connect_ex else self._connect_callback_ex
-                )
+                connect_exception = self._connect_ex or self._connect_callback_ex
+                assert connect_exception
+                connect_future.set_exception(connect_exception)
             else:
                 result_code = args[3]
                 connect_future.set_result(result_code)
