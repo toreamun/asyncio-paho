@@ -420,12 +420,15 @@ class _EventType(Enum):
 
 class _Listeners:
     def __init__(
-        self, client: AsyncioPahoClient, loop: asyncio.AbstractEventLoop, log
+        self,
+        client: AsyncioPahoClient,
+        loop: asyncio.AbstractEventLoop,
+        log: Callable[[int, str, str], None],
     ) -> None:
         self._client = client
         self._event_loop = loop
         self._async_listeners: dict[_EventType, List[Any]] = {}
-        self._log: Callable = log
+        self._log = log
 
     def _handle_callback_result(self, task: asyncio.Task[None]) -> None:
         try:
