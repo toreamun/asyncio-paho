@@ -11,6 +11,7 @@ from typing import Any, Coroutine, Generator, List, Optional, Tuple, Union
 import paho.mqtt.client as paho
 from paho.mqtt import MQTTException
 
+TopicList = List[Union[str, int]]
 CONNECTION_ERROR_CODES = {
     1: "Connection refused - incorrect protocol version",
     2: "Connection refused - invalid client identifier",
@@ -239,7 +240,7 @@ class AsyncioPahoClient(paho.Client):  # type: ignore
 
     async def asyncio_subscribe(
         self,
-        topic: str | tuple | list,
+        topic: str | Tuple[Union[str, List[TopicList], Any] | TopicList],
         qos: int = 0,
         options: paho.SubscribeOptions | None = None,
         properties: paho.Properties | None = None,
