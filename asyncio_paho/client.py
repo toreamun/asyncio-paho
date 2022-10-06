@@ -6,7 +6,7 @@ import socket
 import time
 from collections.abc import Awaitable, Callable
 from enum import Enum, auto
-from typing import Any, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Union
 
 import paho.mqtt.client as paho
 from paho.mqtt import MQTTException
@@ -151,7 +151,7 @@ class AsyncioPahoClient(paho.Client):  # type: ignore
         clean_start: bool | int = paho.MQTT_CLEAN_START_FIRST_ONLY,
         properties: paho.Properties | None = None,
         ignore_connect_error: bool = False,
-    ) -> None:
+    ) -> Optional[Any]:
         # pylint: disable=too-many-arguments
         """Connect to a remote broker asynchronously and return when done."""
         connect_future: asyncio.Future[int] = self._event_loop.create_future()
@@ -172,7 +172,7 @@ class AsyncioPahoClient(paho.Client):  # type: ignore
                 )
             )
 
-        async def connect_callback(*args):
+        async def connect_callback(*args: Any) -> None:
             # pylint: disable=unused-argument
             nonlocal connect_future
             if self._connect_callback_ex or self._connect_ex:
@@ -248,7 +248,7 @@ class AsyncioPahoClient(paho.Client):  # type: ignore
         subscribed_future = self._event_loop.create_future()
         result: tuple[int, int]
 
-        async def on_subscribe(*args):
+        async def on_subscribe(*args: Any) -> None:
             # pylint: disable=unused-argument
             nonlocal result
             if result[1] == args[2]:  # mid should match if relevant
@@ -293,7 +293,7 @@ class AsyncioPahoClient(paho.Client):  # type: ignore
         )
 
     def _on_socket_open_asyncio(
-        self, client: paho.Client, _, sock: socket.socket
+        self, client: paho.Client, _: Any, sock: Union[socket.socket, Any]
     ) -> None:
         self._event_loop.add_reader(sock, client.loop_read)
         # When transport="websockets", sock is WebsocketWrapper which has no setsockopt:
@@ -303,21 +303,21 @@ class AsyncioPahoClient(paho.Client):  # type: ignore
 
     def _on_socket_close_asyncio(
         self,
-        client,
-        userdata,
+        client: paho.Client,
+        userdata: Any,
         sock: socket.socket,
     ) -> None:
         # pylint: disable=unused-argument
         self._event_loop.remove_reader(sock)
 
     def _on_socket_register_write_asyncio(
-        self, client: paho.Client, userdata, sock: socket.socket
+        self, client: paho.Client, userdata: Any, sock: socket.socket
     ) -> None:
         # pylint: disable=unused-argument
         self._event_loop.add_writer(sock, client.loop_write)
 
     def _on_socket_unregister_write_asyncio(
-        self, client, userdata, sock: socket.socket
+        self, client: paho.Client, userdata: Any, sock: socket.socket
     ) -> None:
         # pylint: disable=unused-argument
         self._event_loop.remove_writer(sock)
@@ -423,7 +423,7 @@ class _Listeners:
     ) -> None:
         self._client = client
         self._event_loop = loop
-        self._async_listeners: dict[_EventType, list] = {}
+        self._async_listeners: dict[_EventType, List[Any]] = {}
         self._log: Callable = log
 
     def _handle_callback_result(self, task: asyncio.Task) -> None:
@@ -441,7 +441,7 @@ class _Listeners:
                 task.get_name(),
             )
 
-    def _get_async_listeners(self, event_type: _EventType) -> list:
+    def _get_async_listeners(self, event_type: _EventType) -> List[Any]:
         return self._async_listeners.setdefault(event_type, [])
 
     def _add_async_listener(
