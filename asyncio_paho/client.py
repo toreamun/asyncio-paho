@@ -134,7 +134,7 @@ class AsyncioPahoClient(paho.Client):
         properties: paho.Properties | None = None,
     ) -> int:
         """Disconnect a connected client from the broker."""
-        result = super().disconnect(reasoncode, properties)
+        result: int = super().disconnect(reasoncode, properties)
         self._is_disconnecting = True
         if self._loop_misc_task:
             self._loop_misc_task.cancel()
@@ -154,7 +154,7 @@ class AsyncioPahoClient(paho.Client):
     ) -> None:
         # pylint: disable=too-many-arguments
         """Connect to a remote broker asynchronously and return when done."""
-        connect_future = self._event_loop.create_future()
+        connect_future: asyncio.Future[int] = self._event_loop.create_future()
         self._connect_callback_ex = None
         self._connect_callback_ex = None
 
@@ -215,7 +215,7 @@ class AsyncioPahoClient(paho.Client):
     ) -> int:
         # pylint: disable=too-many-arguments
         """Publish a message on a topic."""
-        subscribed_future = self._event_loop.create_future()
+        subscribed_future: asyncio.Future[int] = self._event_loop.create_future()
 
         result: paho.MQTTMessageInfo
 
@@ -389,6 +389,7 @@ class AsyncioPahoClient(paho.Client):
         # See reconnect_delay_set for details
         now = time.monotonic()
         with self._reconnect_delay_mutex:
+            self._reconnect_delay: int
             if self._reconnect_delay is None:
                 self._reconnect_delay = self._reconnect_min_delay
             else:
