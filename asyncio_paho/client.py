@@ -78,7 +78,7 @@ class AsyncioPahoClient(paho.Client):  # type: ignore
         self._is_connect_async = False
         self._connect_ex: Exception | None = None
         self._connect_callback_ex: Exception | None = None
-        self._loop_misc_task: asyncio.Task | None = None
+        self._loop_misc_task: asyncio.Task[None] | None = None
 
         self._asyncio_listeners = _Listeners(self, self._event_loop, self._log)
         self.on_socket_open = self._on_socket_open_asyncio
@@ -426,7 +426,7 @@ class _Listeners:
         self._async_listeners: dict[_EventType, List[Any]] = {}
         self._log: Callable = log
 
-    def _handle_callback_result(self, task: asyncio.Task) -> None:
+    def _handle_callback_result(self, task: asyncio.Task[None]) -> None:
         try:
             task.result()
             self._log(
