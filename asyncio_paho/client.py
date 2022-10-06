@@ -296,7 +296,9 @@ class AsyncioPahoClient(paho.Client):
         self, client: paho.Client, _, sock: socket.socket
     ) -> None:
         self._event_loop.add_reader(sock, client.loop_read)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 2048)
+        # When transport="websockets", sock is WebsocketWrapper which has no setsockopt:
+        if isinstance(sock, socket.socket):
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 2048)
         self._ensure_loop_misc_started()
 
     def _on_socket_close_asyncio(
