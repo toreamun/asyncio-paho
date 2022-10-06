@@ -90,7 +90,7 @@ class AsyncioPahoClient(paho.Client):
         """Enter contex."""
         return self
 
-    async def __aexit__(self, *args) -> None:
+    async def __aexit__(self, *args: Any, **kwargs: Any) -> None:
         """Exit context."""
         self.disconnect()
         if self._loop_misc_task:
@@ -274,7 +274,7 @@ class AsyncioPahoClient(paho.Client):
         self._userdata = userdata
         super().user_data_set(userdata)
 
-    def loop_forever(self, *args, **kvarg):
+    def loop_forever(self, *args: Any) -> None:
         """Invalid operation."""
         raise NotImplementedError(
             "loop_forever() cannot be used with AsyncioPahoClient."
