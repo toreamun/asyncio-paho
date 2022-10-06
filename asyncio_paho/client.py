@@ -27,7 +27,7 @@ def connect_result_code_to_exception(result_code: int) -> AsyncioMqttConnectErro
     return AsyncioMqttConnectError(result_code)
 
 
-class AsyncioMqttConnectError(MQTTException):
+class AsyncioMqttConnectError(MQTTException):  # type: ignore
     """MQTT connect error."""
 
     def __init__(self, result_code: int):
@@ -47,7 +47,7 @@ class AsyncioMqttAuthError(AsyncioMqttConnectError):
     """MQTT authentication error."""
 
 
-class AsyncioPahoClient(paho.Client):
+class AsyncioPahoClient(paho.Client):  # type: ignore
     # pylint: disable=too-many-instance-attributes
     """Paho MQTT Client using asyncio for connection loop."""
 
