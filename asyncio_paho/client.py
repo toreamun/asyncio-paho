@@ -4,13 +4,14 @@ from __future__ import annotations
 import asyncio
 import socket
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from enum import Enum, auto
 from typing import Any, Coroutine, Generator, List, Optional, Tuple, Union
 
-import paho.mqtt.client as paho
+import paho.mqtt.client as paho  # type: ignore
 from paho.mqtt import MQTTException
 
+AsyncCallback = Callable[[paho.Client, Any, int], Coroutine[Any, Any, None]]
 TopicList = List[Union[str, int]]
 CONNECTION_ERROR_CODES = {
     1: "Connection refused - incorrect protocol version",
@@ -449,7 +450,10 @@ class _Listeners:
         return self._async_listeners.setdefault(event_type, [])
 
     def _add_async_listener(
-        self, event_type: _EventType, callback, is_high_pri=False
+        self,
+        event_type: _EventType,
+        callback: AsyncCallback,
+        is_high_pri: bool = False,
     ) -> Callable[[], None]:
         listeners = self._get_async_listeners(event_type)
         if is_high_pri:
@@ -472,11 +476,7 @@ class _Listeners:
 
     def add_on_connect(
         self,
-        callback: Callable[[paho.Client, Any, dict[str, Any], int], Awaitable[None]]
-        | Callable[
-            [paho.Client, Any, dict[str, Any], paho.ReasonCodes, paho.Properties],
-            Awaitable[None],
-        ],
+        callback: AsyncCallback,
         is_high_pri: bool = False,
     ) -> Callable[[], None]:
         """Add on_connect async listener."""
@@ -492,7 +492,7 @@ class _Listeners:
 
     def add_on_connect_fail(
         self,
-        callback: Callable[[paho.Client, Any], Awaitable[None]],
+        callback: AsyncCallback,
         is_high_pri: bool = False,
     ) -> Callable[[], None]:
         """Add on_connect_fail async listener."""
@@ -507,7 +507,7 @@ class _Listeners:
 
     def add_on_message(
         self,
-        callback: Callable[[paho.Client, Any, paho.MQTTMessage], Awaitable[None]],
+        callback: AsyncCallback,
     ) -> Callable[[], None]:
         """Add on_connect_fail async listener."""
 
@@ -536,10 +536,7 @@ class _Listeners:
 
     def add_on_subscribe(
         self,
-        callback: Callable[[paho.Client, Any, int, tuple[int, ...]], Awaitable[None]]
-        | Callable[
-            [paho.Client, Any, int, list[int], paho.Properties], Awaitable[None]
-        ],
+        callback: AsyncCallback,
         is_high_pri: bool = False,
     ) -> Callable[[], None]:
         """Add on_subscribe async listener."""
@@ -552,7 +549,7 @@ class _Listeners:
 
     def add_on_publish(
         self,
-        callback: Callable[[paho.Client, Any, int], Awaitable[None]],
+        callback: AsyncCallback,
         is_high_pri: bool = False,
     ) -> Callable[[], None]:
         """Add on_publish async listener."""
