@@ -6,7 +6,7 @@ import socket
 import time
 from collections.abc import Awaitable, Callable
 from enum import Enum, auto
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Coroutine, Generator, List, Optional, Tuple, Union
 
 import paho.mqtt.client as paho
 from paho.mqtt import MQTTException
@@ -516,7 +516,10 @@ class _Listeners:
     def message_callback_add(
         self,
         sub: str,
-        callback: Callable[[paho.Client, Any, paho.MQTTMessage], Awaitable[None]],
+        callback: Callable[
+            [paho.Client, Any, paho.MQTTMessage],
+            Union[Coroutine[Any, Any, None], Generator[Any, None, None]],
+        ],
     ) -> None:
         """Register an async message callback for a specific topic."""
 
